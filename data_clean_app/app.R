@@ -5,7 +5,10 @@
 # Find out more about building applications with Shiny here:
 #
 #    http://shiny.rstudio.com/
-# what if i change this
+#  to do:
+# make tab with graph to QAQC
+#new overarching tab for all_data_combining
+#filters to get more specific with values
 
 
 library(shiny)
