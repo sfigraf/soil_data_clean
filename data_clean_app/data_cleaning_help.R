@@ -71,11 +71,20 @@ data_summaries <- data8 %>%
 #   #filter(between(TIMESTAMP, as.Date("2021-06-01"), as.Date("2021-07-10")))
 #   dplyr::filter((TIMESTAMP >= as.Date("2021-06-01")))
 
+# 
 ggplot(data8) +
   aes(x = TIMESTAMP, y = value1) +
   geom_point(shape = "circle", size = 1.5, colour = "#112446") +
   theme_minimal() +
-  facet_wrap(vars(x))
+  facet_wrap(vars(data8$sensor_number_and_depth)) +
+  labs(title = "Cleaned data visual")
+
+ggplot(data4) +
+  aes(x = TIMESTAMP, y = value1) +
+  geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+  theme_minimal() +
+  facet_wrap(vars(data4$sensor_number_and_depth)) +
+  labs(title = "Not Cleaned data visual")
 
 x <- data3 %>%
   ggplot(aes(x = TIMESTAMP, y = O2_2_15cm)) +

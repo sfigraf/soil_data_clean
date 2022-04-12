@@ -33,6 +33,7 @@ clean_sheet_function <- function(excel_sheet_data, sheet_name) {
   # but values <10 in january are expected
   
   #this gets df of problem rows
+  #take this out later for more specific filters
   problem_rows <- data4 %>%
     #filter(between(TIMESTAMP, as.Date("2021-06-01"), as.Date("2021-07-10")))
     filter((TIMESTAMP >= as.Date("2021-06-01") & TIMESTAMP <= as.Date("2021-07-10")),
@@ -43,22 +44,20 @@ clean_sheet_function <- function(excel_sheet_data, sheet_name) {
   #in general only want oxygen values under 22
   #also prepares new columns for summarizing
   data8 <- data6 %>%
-    filter(value1 < 22) %>%
+    #filter(value1 < 22) %>% #taken out for more specific filters in app
     mutate(depth = str_sub(sensor_number_and_depth, 6, -1),
            node = as.character(sheet_name))
   
-  #each entry sometimes has multiple data points for each timestamp, so this code gives averages for each depth by timestamp
-  data_summaries <- data8 %>%
-    group_by(TIMESTAMP, depth) %>%
-    #mutate(avg2 = mean(value1))
-    summarise(avg1 = mean(value1)) %>%
-    mutate(node_x = as.character(sheet_name))
   
-  data_list <- list("depth_timestamp_summaries" = data_summaries, "clean_data" = data8)
+  
+  data_list <- list("depth_timestamp_summaries" = data_summaries, "not_clean_data" = data4, "clean_data" = data8)
   
   return(data_list)
   
 }
 
 # x <- clean_sheet_function(data, "Node 1")
+# excel_sheet_data <- data
+# sheet_name <- "Node 1"
+
 # # x$depth_timestamp_summaries

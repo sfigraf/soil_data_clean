@@ -10,6 +10,7 @@
 #new overarching tab for all_data_combining
 #filters to get more specific with values
 
+#broad cleaning 
 
 library(shiny)
 library(shinycssloaders)
@@ -26,6 +27,13 @@ ui <- fluidPage(
         sidebarPanel(
             fileInput('file1', 'Insert File', accept = c(".xlsx")),
             textInput('file1sheet','Name of Sheet (Case-Sensitive)'),
+            sliderInput("slider1", "Oxygen Range",
+                        min = 0,
+                        max = 50,  
+                        value = c(10,30),
+                        step = 1)
+                        
+            
         
     ),#end of sidebar panel
         mainPanel(tabsetPanel(
@@ -40,7 +48,13 @@ ui <- fluidPage(
                      withSpinner(DT::dataTableOutput("table3")),
                      hr(),
                      downloadButton(outputId = "download2", label = "Save this data as CSV"),
-                     hr())
+                     hr()),
+            
+            tabPanel("Plots", 
+                     withSpinner(plotOutput("plot1")),
+                     withSpinner(plotOutput("plot2")),
+                     ),
+            
         ))#end of mainPanel 
     ) #end of sidebarLayout
     
@@ -100,17 +114,51 @@ server <- function(input, output) {
     # })
     
     cleaned_data <- reactive({
-        clean_sheet_function(raw_data(),input$file1sheet)
+        results <- clean_sheet_function(raw_data(),input$file1sheet)
+        
+        filtered_clean <- results$clean_data %>%
+            filter(
+                value1 >= input$slider1[1] & value1 <= input$slider1[2]
+            )
+        
+        #each entry sometimes has multiple data points for each timestamp, so this code gives averages for each depth by timestamp
+        data_summaries <- filtered_clean %>%
+            group_by(TIMESTAMP, depth) %>%
+            #mutate(avg2 = mean(value1))
+            summarise(avg1 = mean(value1)) %>%
+            mutate(node_x = as.character(input$file1sheet))
+        
+        cleaned_data_list <- list("cleaned_data2" = filtered_clean, "data_summaries1" = data_summaries,  "cleaned_list" = results)
+        return(cleaned_data_list)
     })
 
     ##table 2 output
     output$table2 <- renderDT({
-        datatable(cleaned_data()$clean_data)
+        datatable(cleaned_data()$cleaned_data2)
     })
     
     ##table 3 output
     output$table3 <- renderDT({
-        datatable(cleaned_data()$depth_timestamp_summaries)
+        datatable(cleaned_data()$data_summaries1)
+    })
+    
+    ##plot 1 output
+    output$plot1 <- renderPlot({
+        ggplot(cleaned_data()$cleaned_list$not_clean_data) +
+            aes(x = TIMESTAMP, y = value1) +
+            geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+            theme_minimal() +
+            facet_wrap(vars(sensor_number_and_depth)) +
+            labs(title = "Not Cleaned data visual")
+    })
+    #plot 2 output
+    output$plot2 <- renderPlot({
+        ggplot(cleaned_data()$cleaned_data2) +
+            aes(x = TIMESTAMP, y = value1) +
+            geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+            theme_minimal() +
+            facet_wrap(vars(sensor_number_and_depth)) +
+            labs(title = "Cleaned data visual")
     })
     
 
