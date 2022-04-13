@@ -27,33 +27,34 @@ clean_sheet_function <- function(excel_sheet_data, sheet_name) {
   
   #changes data layout to make it easier to identify problem entries
   data4 <- data3 %>%
-    gather(key = "sensor_number_and_depth", value = "value1", -TIMESTAMP)
+    gather(key = "sensor_number_and_depth", value = "value1", -TIMESTAMP) %>%
+    mutate(depth = str_sub(sensor_number_and_depth, 6, -1),
+           node = as.character(sheet_name))
   
   #getting "problem entries": in this case, if value is between June and july and value is less than 10, it's a mistake and should be taken out
   # but values <10 in january are expected
   
   #this gets df of problem rows
   #take this out later for more specific filters
-  problem_rows <- data4 %>%
-    #filter(between(TIMESTAMP, as.Date("2021-06-01"), as.Date("2021-07-10")))
-    filter((TIMESTAMP >= as.Date("2021-06-01") & TIMESTAMP <= as.Date("2021-07-10")),
-           value1 <10)
-  #this takes these rows out of the main dataframe
-  data6 <- anti_join(data4, problem_rows)
+  # problem_rows <- data4 %>%
+  #   #filter(between(TIMESTAMP, as.Date("2021-06-01"), as.Date("2021-07-10")))
+  #   filter((TIMESTAMP >= as.Date("2021-06-01") & TIMESTAMP <= as.Date("2021-07-10")),
+  #          value1 <10)
+  # #this takes these rows out of the main dataframe
+  # data6 <- anti_join(data4, problem_rows)
   
   #in general only want oxygen values under 22
   #also prepares new columns for summarizing
   #can also just put this in "datasummaries" code
-  data8 <- data6 %>%
+ # data8 <- data4 %>%
     #filter(value1 < 22) %>% #taken out for more specific filters in app
-    mutate(depth = str_sub(sensor_number_and_depth, 6, -1),
-           node = as.character(sheet_name))
+    
   
   
   
-  data_list <- list("not_clean_data" = data4, "clean_data" = data8)
+  #data_list <- list("clean_data" = data4)
   
-  return(data_list)
+  return(data4)
   
 }
 

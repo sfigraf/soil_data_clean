@@ -14,11 +14,12 @@
 # tab for combining, with multiple file uploads
 #broad cleaning function
 #start/ends/values updating in ui with file upload
-# separate plots to make draweing them easier
+# 
 
 library(shiny)
 library(shinycssloaders)
 library(tidyverse)
+library(lubridate)
 library(readxl)
 library(DT)
 #changes max upload to 600 mb
@@ -47,14 +48,15 @@ ui <- fluidPage(
                                          min = 0,
                                          max = 50,  
                                          value = c(10,30),
-                                         step = 1),
-                             actionButton("button1",
-                                          "Take out values specified above")
-            )# end of conditional panel
+                                         step = 1)
+            ),# end of conditional panel
+            
+            actionButton("button1",
+                         "Render/Update Data")
         
     ),#end of sidebar panel
         mainPanel(tabsetPanel(
-            tabPanel("Uploaded Table",
+            tabPanel("Raw Data",
                      withSpinner(DT::dataTableOutput("table1"))),
             tabPanel("Cleaned Data", 
                      withSpinner(DT::dataTableOutput("table2")),
@@ -84,7 +86,10 @@ ui <- fluidPage(
     #tableOutput("value")
 )
 
-server <- function(input, output) {
+server <- function(input, output, session) {
+
+# Uploading Data Logic ----------------------------------------------------
+
     
     sheets_name <- reactive({
         if (!is.null(input$file1)) {
@@ -118,23 +123,46 @@ server <- function(input, output) {
     })
     
     
+    function_cleaned_data <- reactive({
+        clean_sheet_function(raw_data(),input$file1sheet)
+        
+    })
+    
+
+# Update UI Logic ---------------------------------------------------------
+
+    # events_list <- reactive({
+    #     list(input$file1,input$file1sheet)
+    # })
+    # observeEvent(events_list(), {
+    # 
+    #      if (!is.null(input$file1) &&
+    #         (input$file1sheet %in% sheets_name())) {
+    # 
+    #         updateSliderInput(session, "slider1",
+    #                           min = min(function_cleaned_data()$value1),
+    #                           max = max(function_cleaned_data()$value1),
+    #                           value = c(min(function_cleaned_data()$value1) + 10,max(function_cleaned_data()$value1)-10)
+    #         )
+    #     }
+    #     
+    # })    
+    
+    
     
 
 # Data reactives ----------------------------------------------------------
 
     
-    
-    function_cleaned_data <- reactive({
-        clean_sheet_function(raw_data(),input$file1sheet)
-    })
-    
-    cleaned_data <- reactive({
-        #results <- clean_sheet_function(raw_data(),input$file1sheet)
-        
+ 
+    cleaned_data <- eventReactive(input$button1,{
+        print(max(function_cleaned_data()$value1))
+        #if checkbox is pressed to modify values with date range, then use slider2 and dateragne inputs in addition to slider1
+
         if (input$checkbox1 == TRUE) {
             
             
-            filtered_clean <- function_cleaned_data()$clean_data %>%
+            filtered_clean <- function_cleaned_data() %>%
                 filter(
                     value1 >= input$slider1[1] & value1 <= input$slider1[2]
                 )
@@ -147,7 +175,6 @@ server <- function(input, output) {
             #this takes these rows out of the main dataframe
             filtered_clean2 <- anti_join(filtered_clean, problem_rows)
             
-            
             data_summaries <- filtered_clean2 %>%
                 # mutate(depth = str_sub(sensor_number_and_depth, 6, -1),
                 #        node = as.character(sheet_name)) %>%
@@ -155,8 +182,8 @@ server <- function(input, output) {
                 #mutate(avg2 = mean(value1))
                 summarise(avg1 = mean(value1)) %>%
                 mutate(node_x = as.character(input$file1sheet))
-        } else{
-            filtered_clean2 <- function_cleaned_data()$clean_data %>%
+        } else { #if checkbox not pressed, just use slider1 inputs
+            filtered_clean2 <- function_cleaned_data() %>%
                 filter(
                     value1 >= input$slider1[1] & value1 <= input$slider1[2]
                 )
@@ -197,7 +224,7 @@ server <- function(input, output) {
     
     ##plot 1 output
     output$plot1 <- renderPlot({
-        ggplot(function_cleaned_data()$not_clean_data) +
+        ggplot(function_cleaned_data()) +
             aes(x = TIMESTAMP, y = value1) +
             geom_point(shape = "circle", size = 1.5, colour = "#112446") +
             theme_minimal() +
