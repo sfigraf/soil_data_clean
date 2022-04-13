@@ -43,6 +43,7 @@ clean_sheet_function <- function(excel_sheet_data, sheet_name) {
   
   #in general only want oxygen values under 22
   #also prepares new columns for summarizing
+  #can also just put this in "datasummaries" code
   data8 <- data6 %>%
     #filter(value1 < 22) %>% #taken out for more specific filters in app
     mutate(depth = str_sub(sensor_number_and_depth, 6, -1),
@@ -50,7 +51,7 @@ clean_sheet_function <- function(excel_sheet_data, sheet_name) {
   
   
   
-  data_list <- list("depth_timestamp_summaries" = data_summaries, "not_clean_data" = data4, "clean_data" = data8)
+  data_list <- list("not_clean_data" = data4, "clean_data" = data8)
   
   return(data_list)
   

@@ -9,8 +9,12 @@
 # make tab with graph to QAQC
 #new overarching tab for all_data_combining
 #filters to get more specific with values
-
-#broad cleaning 
+### filters for value and time period (see function)
+#tab for all nodes combined
+# tab for combining, with multiple file uploads
+#broad cleaning function
+#start/ends/values updating in ui with file upload
+# separate plots to make draweing them easier
 
 library(shiny)
 library(shinycssloaders)
@@ -31,9 +35,22 @@ ui <- fluidPage(
                         min = 0,
                         max = 50,  
                         value = c(10,30),
-                        step = 1)
-                        
-            
+                        step = 1),
+            checkboxInput("checkbox1", "Take out Oxygen Range based on Dates?"),
+            hr(),
+            conditionalPanel(condition = "input.checkbox1 == true",
+                             dateRangeInput("drange1",
+                                            "Date you want to take off",
+                                            start = "2021-06-01",
+                                            end = "2021-07-10"),
+                             sliderInput("slider2", "Oxygen range to take out of data between selected date range above",
+                                         min = 0,
+                                         max = 50,  
+                                         value = c(10,30),
+                                         step = 1),
+                             actionButton("button1",
+                                          "Take out values specified above")
+            )# end of conditional panel
         
     ),#end of sidebar panel
         mainPanel(tabsetPanel(
@@ -50,10 +67,14 @@ ui <- fluidPage(
                      downloadButton(outputId = "download2", label = "Save this data as CSV"),
                      hr()),
             
-            tabPanel("Plots", 
+            tabPanel("Original data plot", 
                      withSpinner(plotOutput("plot1")),
-                     withSpinner(plotOutput("plot2")),
+            
                      ),
+            tabPanel("Filtered/Clean Data plot", 
+                     
+                     withSpinner(plotOutput("plot2")),
+            ),
             
         ))#end of mainPanel 
     ) #end of sidebarLayout
@@ -97,39 +118,71 @@ server <- function(input, output) {
     })
     
     
-    output$table1 <- renderDT({
-        datatable(raw_data(), editable = TRUE)
+    
+
+# Data reactives ----------------------------------------------------------
+
+    
+    
+    function_cleaned_data <- reactive({
+        clean_sheet_function(raw_data(),input$file1sheet)
     })
     
-    # proxy = dataTableProxy('table1')
-    # 
-    # observeEvent(input$x1_cell_edit, {
-    #     info = input$x1_cell_edit
-    #     str(info)
-    #     i = info$row
-    #     j = info$col
-    #     v = info$value
-    #     x[i, j] <<- DT::coerceValue(v, x[i, j])
-    #     replaceData(proxy, x, resetPaging = FALSE)  # important
-    # })
-    
     cleaned_data <- reactive({
-        results <- clean_sheet_function(raw_data(),input$file1sheet)
+        #results <- clean_sheet_function(raw_data(),input$file1sheet)
         
-        filtered_clean <- results$clean_data %>%
-            filter(
-                value1 >= input$slider1[1] & value1 <= input$slider1[2]
-            )
+        if (input$checkbox1 == TRUE) {
+            
+            
+            filtered_clean <- function_cleaned_data()$clean_data %>%
+                filter(
+                    value1 >= input$slider1[1] & value1 <= input$slider1[2]
+                )
+            
+            problem_rows <- filtered_clean %>%
+                #filter(between(TIMESTAMP, as.Date("2021-06-01"), as.Date("2021-07-10")))
+                filter((TIMESTAMP >= input$drange1[1] & TIMESTAMP <= input$drange1[2]),
+                       value1 >= input$slider2[1] & value1 <= input$slider2[2]
+                       )
+            #this takes these rows out of the main dataframe
+            filtered_clean2 <- anti_join(filtered_clean, problem_rows)
+            
+            
+            data_summaries <- filtered_clean2 %>%
+                # mutate(depth = str_sub(sensor_number_and_depth, 6, -1),
+                #        node = as.character(sheet_name)) %>%
+                group_by(TIMESTAMP, depth) %>%
+                #mutate(avg2 = mean(value1))
+                summarise(avg1 = mean(value1)) %>%
+                mutate(node_x = as.character(input$file1sheet))
+        } else{
+            filtered_clean2 <- function_cleaned_data()$clean_data %>%
+                filter(
+                    value1 >= input$slider1[1] & value1 <= input$slider1[2]
+                )
+            
+            #each entry sometimes has multiple data points for each timestamp, so this code gives averages for each depth by timestamp
+            data_summaries <- filtered_clean2 %>%
+                group_by(TIMESTAMP, depth) %>%
+                #mutate(avg2 = mean(value1))
+                summarise(avg1 = mean(value1)) %>%
+                mutate(node_x = as.character(input$file1sheet))
+        }
         
-        #each entry sometimes has multiple data points for each timestamp, so this code gives averages for each depth by timestamp
-        data_summaries <- filtered_clean %>%
-            group_by(TIMESTAMP, depth) %>%
-            #mutate(avg2 = mean(value1))
-            summarise(avg1 = mean(value1)) %>%
-            mutate(node_x = as.character(input$file1sheet))
         
-        cleaned_data_list <- list("cleaned_data2" = filtered_clean, "data_summaries1" = data_summaries,  "cleaned_list" = results)
+        
+
+        
+        cleaned_data_list <- list("cleaned_data2" = filtered_clean2, "data_summaries1" = data_summaries)
         return(cleaned_data_list)
+    })
+    
+
+# Table Outputs -----------------------------------------------------------
+
+
+    output$table1 <- renderDT({
+        datatable(raw_data(), editable = TRUE)
     })
 
     ##table 2 output
@@ -144,7 +197,7 @@ server <- function(input, output) {
     
     ##plot 1 output
     output$plot1 <- renderPlot({
-        ggplot(cleaned_data()$cleaned_list$not_clean_data) +
+        ggplot(function_cleaned_data()$not_clean_data) +
             aes(x = TIMESTAMP, y = value1) +
             geom_point(shape = "circle", size = 1.5, colour = "#112446") +
             theme_minimal() +
