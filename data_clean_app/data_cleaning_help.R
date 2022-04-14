@@ -95,3 +95,26 @@ ggplotly(x)
 
   #na_if(O2_1_5cm, "NaN")
   #filter()
+
+
+
+# Combining data code -----------------------------------------------------
+names <- list("Cleaned_data_Node1.csv", "Cleaned_data_Node2.csv","Cleaned_data_Node3.csv","Cleaned_data_Node4.csv")
+
+node1_clean <- read_csv("Cleaned_data_Node1.csv")
+node2_clean <- read_csv("Cleaned_data_Node2.csv")
+node3_clean <- read_csv("Cleaned_data_Node3.csv")
+node4_clean <- read_csv("Cleaned_data_Node4.csv")
+
+df_list <- list(node1_clean,node2_clean,node3_clean,node4_clean)
+
+all <- bind_rows(df_list)
+
+rbindlist(lapply(df_list, read_csv),
+          use.names = TRUE, fill = TRUE)
+
+x <- lapply(names, read_csv)
+all <- bind_rows(x)
+
+??rbindlist
+library(data.table)

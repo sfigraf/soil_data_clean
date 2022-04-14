@@ -6,21 +6,19 @@
 #
 #    http://shiny.rstudio.com/
 #  to do:
-# make tab with graph to QAQC
+
 #new overarching tab for all_data_combining
-#filters to get more specific with values
-### filters for value and time period (see function)
 #tab for all nodes combined
 # tab for combining, with multiple file uploads
-#broad cleaning function
-#start/ends/values updating in ui with file upload
-# 
+#start/ends/values updating in ui with file upload: attempted not succeeded
+# combine tabs in "oxygen" tab so plot and data are right next to each other in the tabs
 
 library(shiny)
 library(shinycssloaders)
 library(tidyverse)
 library(lubridate)
 library(readxl)
+library(shinythemes)
 library(DT)
 #changes max upload to 600 mb
 options(shiny.maxRequestSize=600*1024^2)
@@ -28,59 +26,85 @@ options(shiny.maxRequestSize=600*1024^2)
 source("clean_sheet_function.R")
 # Define UI for application that draws a histogram
 ui <- fluidPage(
-    sidebarLayout(
-        sidebarPanel(
-            fileInput('file1', 'Insert File', accept = c(".xlsx")),
-            textInput('file1sheet','Name of Sheet (Case-Sensitive)'),
-            sliderInput("slider1", "Oxygen Range",
-                        min = 0,
-                        max = 50,  
-                        value = c(10,30),
-                        step = 1),
-            checkboxInput("checkbox1", "Take out Oxygen Range based on Dates?"),
-            hr(),
-            conditionalPanel(condition = "input.checkbox1 == true",
-                             dateRangeInput("drange1",
-                                            "Date you want to take off",
-                                            start = "2021-06-01",
-                                            end = "2021-07-10"),
-                             sliderInput("slider2", "Oxygen range to take out of data between selected date range above",
-                                         min = 0,
-                                         max = 50,  
-                                         value = c(10,30),
-                                         step = 1)
-            ),# end of conditional panel
-            
-            actionButton("button1",
-                         "Render/Update Data")
-        
-    ),#end of sidebar panel
-        mainPanel(tabsetPanel(
-            tabPanel("Raw Data",
-                     withSpinner(DT::dataTableOutput("table1"))),
-            tabPanel("Cleaned Data", 
-                     withSpinner(DT::dataTableOutput("table2")),
-                     hr(),
-                     downloadButton(outputId = "download1", label = "Save this data as CSV"),
-                     hr()),
-            tabPanel("Depth and Time Summaries", 
-                     withSpinner(DT::dataTableOutput("table3")),
-                     hr(),
-                     downloadButton(outputId = "download2", label = "Save this data as CSV"),
-                     hr()),
-            
-            tabPanel("Original data plot", 
-                     withSpinner(plotOutput("plot1")),
-            
-                     ),
-            tabPanel("Filtered/Clean Data plot", 
-                     
-                     withSpinner(plotOutput("plot2")),
-            ),
-            
-        ))#end of mainPanel 
-    ) #end of sidebarLayout
     
+    navbarPage(title = "Soil data wrangle!!",
+               theme = shinytheme("yeti"), #end of navbar page arguments; what follow is all inside it
+        tabPanel("Upload and Clean Oxygen Data",
+                 
+                 sidebarLayout(
+                     sidebarPanel(
+                         fileInput('file1', 'Insert File', accept = c(".xlsx")),
+                         textInput('file1sheet','Name of Sheet (Case-Sensitive)'),
+                         sliderInput("slider1", "Oxygen Range",
+                                     min = 0,
+                                     max = 50,  
+                                     value = c(10,30),
+                                     step = 1),
+                         checkboxInput("checkbox1", "Take out Oxygen Range based on Dates?"),
+                         hr(),
+                         conditionalPanel(condition = "input.checkbox1 == true",
+                                          dateRangeInput("drange1",
+                                                         "Date you want to take off",
+                                                         start = "2021-06-01",
+                                                         end = "2021-07-10"),
+                                          sliderInput("slider2", "Oxygen range to take out of data between selected date range above",
+                                                      min = 0,
+                                                      max = 50,  
+                                                      value = c(10,30),
+                                                      step = 1)
+                         ),# end of conditional panel
+                         
+                         actionButton("button1",
+                                      "Render/Update Data")
+                         
+                     ),#end of sidebar panel
+                     mainPanel(tabsetPanel(
+                         tabPanel("Raw Data",
+                                  withSpinner(DT::dataTableOutput("table1"))),
+                         tabPanel("Cleaned Data", 
+                                  withSpinner(DT::dataTableOutput("table2")),
+                                  hr(),
+                                  downloadButton(outputId = "download1", label = "Save this data as CSV"),
+                                  hr()),
+                         tabPanel("Depth and Time Summaries", 
+                                  withSpinner(DT::dataTableOutput("table3")),
+                                  hr(),
+                                  downloadButton(outputId = "download2", label = "Save this data as CSV"),
+                                  hr()),
+                         
+                         tabPanel("Original data plot", 
+                                  withSpinner(plotOutput("plot1")),
+                                  
+                         ),
+                         tabPanel("Filtered/Clean Data plot", 
+                                  
+                                  withSpinner(plotOutput("plot2")),
+                         ),
+                         
+                     )#end of tabset panel
+                     )#end of mainPanel 
+                 ) #end of sidebarLayout
+                 ),# end of clean oxygen Tab panel
+        
+        tabPanel("Combine Data",
+                 sidebarLayout(
+                     sidebarPanel(
+                         fileInput("file2", "Upload files to combine", multiple = TRUE),
+                         
+                     ),
+                     mainPanel(tabsetPanel(
+                         tabPanel("Combined Data",
+                             withSpinner(DT::dataTableOutput("table4")),
+                             ),
+
+                     )# end of combine data tabset panel
+                     ) #end of combine data mainpanel
+                     )# end of combinedata sidebar Layout
+                 )# end of combine data tabPanel
+                 
+        
+        
+    ) #end of navbar page
     
     
     #tableOutput("value")
@@ -129,6 +153,19 @@ server <- function(input, output, session) {
     })
     
 
+# Combine Data Upload Logic -----------------------------------------------
+
+    combined_data <- reactive({
+        node_list <- lapply(input$file2$datapath, read_csv)
+        all <- bind_rows(node_list)
+        #erase duplicates just in case; shouldn't be any since duplicates are also erased in data_cleaning process
+        all_1 <- all %>%
+            distinct()
+        return(all_1)
+    })
+    
+    
+
 # Update UI Logic ---------------------------------------------------------
 
     # events_list <- reactive({
@@ -153,6 +190,7 @@ server <- function(input, output, session) {
 
 # Data reactives ----------------------------------------------------------
 
+    
     
  
     cleaned_data <- eventReactive(input$button1,{
@@ -222,6 +260,11 @@ server <- function(input, output, session) {
         datatable(cleaned_data()$data_summaries1)
     })
     
+    ##table 4 output
+    output$table4 <- renderDT({
+        datatable(combined_data())
+    })
+    
     ##plot 1 output
     output$plot1 <- renderPlot({
         ggplot(function_cleaned_data()) +
@@ -251,7 +294,7 @@ server <- function(input, output, session) {
             }
         ,
         content = function(file) {
-            write_csv(cleaned_data()$clean_data, file)
+            write_csv(cleaned_data()$cleaned_data2, file)
             
             
         }
@@ -264,7 +307,7 @@ server <- function(input, output, session) {
             }
         ,
         content = function(file) {
-            write_csv(cleaned_data()$depth_timestamp_summaries, file)
+            write_csv(cleaned_data()$data_summaries1, file)
             
             
         }
