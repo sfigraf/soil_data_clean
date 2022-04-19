@@ -95,6 +95,9 @@ ui <- fluidPage(
                      mainPanel(tabsetPanel(
                          tabPanel("Combined Data",
                              withSpinner(DT::dataTableOutput("table4")),
+                             hr(),
+                             downloadButton(outputId = "download3", label = "Save this data as CSV"),
+                             hr(),
                              ),
 
                      )# end of combine data tabset panel
@@ -312,6 +315,19 @@ server <- function(input, output, session) {
             
         }
     ) #end of download2    
+    
+    output$download3 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("Combined_data.csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(combined_data(), file)
+            
+            
+        }
+    ) #end of download2   
 }
 
 # Run the application 
