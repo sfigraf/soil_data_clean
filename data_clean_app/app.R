@@ -1,18 +1,7 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
 #  to do:
 
-#new overarching tab for all_data_combining
-#tab for all nodes combined
-# tab for combining, with multiple file uploads
 #start/ends/values updating in ui with file upload: attempted not succeeded
 # combine tabs in "oxygen" tab so plot and data are right next to each other in the tabs
- # update access token (make permanent) so that I can keep updating github
 # each time you click update data, will sequentially take off selected outlier dates; so each time you press buttion it "adds on"/substracts from df
  
 library(shiny)
@@ -26,11 +15,17 @@ library(DT)
 options(shiny.maxRequestSize=600*1024^2)
 
 source("clean_sheet_function.R")
+source("functions/greenhouse_gas_function.R") #Node 1_cleaned_021722
 # Define UI for application that draws a histogram
 ui <- fluidPage(
     
     navbarPage(title = "Soil data wrangle!!",
                theme = shinytheme("yeti"), #end of navbar page arguments; what follow is all inside it
+               
+
+# Upload and clean oxygen data --------------------------------------------
+
+               
         tabPanel("Upload and Clean Oxygen Data",
                  
                  sidebarLayout(
@@ -87,18 +82,56 @@ ui <- fluidPage(
                      )#end of mainPanel 
                  ) #end of sidebarLayout
                  ),# end of clean oxygen Tab panel
+
+# Greenhouse Gas cleaning Tab ---------------------------------------------
+
+tabPanel("Upload and Clean Greenhouse Gas Data",
+         
+         sidebarLayout(
+             sidebarPanel(
+                 fileInput('file2', 'Insert File', accept = c(".xlsx")),
+                 textInput('file2sheet','Name of Sheet (Case-Sensitive)'),
+                 textInput('nodename1','Name of Node'),
+                 
+                 
+             ),#end of sidebar panel
+             mainPanel(tabsetPanel(
+                 tabPanel("Raw Data",
+                          withSpinner(DT::dataTableOutput("ggtable1"))),
+                 tabPanel("Cleaned Data", 
+                          withSpinner(DT::dataTableOutput("ggtable2")),
+                          hr(),
+                          downloadButton(outputId = "ggdownload1", label = "Save this data as CSV"),
+                          hr()),
+                 
+                 tabPanel("Filtered/Clean Data plots", 
+                          withSpinner(plotOutput("gg_plot1")),
+                          withSpinner(plotOutput("gg_plot2")),
+                          withSpinner(plotOutput("gg_plot3")),
+                          withSpinner(plotOutput("gg_plot4")),
+                 ),
+                 
+             )#end of tabset panel
+             )#end of mainPanel 
+         ) #end of sidebarLayout
+),# end of clean greenhouse gas Tab panel
+
+
+# Combine Data UI Tab -----------------------------------------------------
+
+
         
         tabPanel("Combine Data",
                  sidebarLayout(
                      sidebarPanel(
-                         fileInput("file2", "Upload files to combine", multiple = TRUE),
+                         fileInput("combine_file1", "Upload files to combine", multiple = TRUE),
                          
                      ),
                      mainPanel(tabsetPanel(
                          tabPanel("Combined Data",
-                             withSpinner(DT::dataTableOutput("table4")),
+                             withSpinner(DT::dataTableOutput("combine_table1")),
                              hr(),
-                             downloadButton(outputId = "download3", label = "Save this data as CSV"),
+                             downloadButton(outputId = "combine_download1", label = "Save this data as CSV"),
                              hr(),
                              ),
 
@@ -115,9 +148,12 @@ ui <- fluidPage(
     #tableOutput("value")
 )
 
+# Server ------------------------------------------------------------------
+
+
 server <- function(input, output, session) {
 
-# Uploading Data Logic ----------------------------------------------------
+# Uploading Oxygen Data Logic ----------------------------------------------------
 
     
     sheets_name <- reactive({
@@ -158,10 +194,47 @@ server <- function(input, output, session) {
     })
     
 
+# Upload Greenhouse gas Data Logic ----------------------------------------
+ # had error: path needs to be a string because i had input$file1 somwhere in here instead of input$file2
+    gg_sheets_name <- reactive({
+        if (!is.null(input$file2)) {
+            return(excel_sheets(path = input$file2$datapath))  
+        } else {
+            return(NULL)
+        }
+    })
+    
+    gg_raw_data <- reactive({
+        if (!is.null(input$file2) && 
+            (input$file2sheet %in% gg_sheets_name())) {
+            data <- read_excel(input$file2$datapath, 
+                               sheet = input$file2sheet,
+                               col_types = c("date", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text"), 
+                               
+                               skip = 1)
+            
+            return(data)
+        } else {
+            return(NULL)
+        }
+    })
+    
+    gg_function_cleaned_data <- reactive({
+        gg_function(gg_raw_data(),input$nodename1)
+        
+    })
+    
+    
+
 # Combine Data Upload Logic -----------------------------------------------
 
     combined_data <- reactive({
-        node_list <- lapply(input$file2$datapath, read_csv)
+        node_list <- lapply(input$combine_file1$datapath, read_csv)
         all <- bind_rows(node_list)
         #erase duplicates just in case; shouldn't be any since duplicates are also erased in data_cleaning process
         all_1 <- all %>%
@@ -239,10 +312,6 @@ server <- function(input, output, session) {
                 mutate(node_x = as.character(input$file1sheet))
         }
         
-        
-        
-
-        
         cleaned_data_list <- list("cleaned_data2" = filtered_clean2, "data_summaries1" = data_summaries)
         return(cleaned_data_list)
     })
@@ -265,8 +334,8 @@ server <- function(input, output, session) {
         datatable(cleaned_data()$data_summaries1)
     })
     
-    ##table 4 output
-    output$table4 <- renderDT({
+    ##combine_table1 output
+    output$combine_table1 <- renderDT({
         datatable(combined_data())
     })
     
@@ -288,6 +357,50 @@ server <- function(input, output, session) {
             facet_wrap(vars(sensor_number_and_depth)) +
             labs(title = "Cleaned data visual")
     })
+
+# Greenhouse gas Plots and tables ----------------------------------------------------
+    output$ggtable1 <- renderDT({
+        datatable(gg_raw_data())
+    })
+    
+    output$ggtable2 <- renderDT({
+        datatable(gg_function_cleaned_data())
+    })
+    
+    ##gg_plot1 output
+    output$gg_plot1 <- renderPlot({
+        gg_function_cleaned_data() %>%
+            ggplot(aes(x = DateTime2, y = `N2O_Flux[nmol+1m-2s-1]`)) +
+            geom_point() +
+            labs(title = "N2O Flux") +
+            theme_classic()
+    })
+    ##gg_plot2 output
+    output$gg_plot2 <- renderPlot({
+        gg_function_cleaned_data() %>%
+            ggplot(aes(x = DateTime2, y = `N2O Concentration[nmol+1mol-1]`)) +
+            geom_point() +
+            labs(title = "N2O Concentration") +
+            theme_classic()
+    })
+    ##gg_plot3 output
+    output$gg_plot3 <- renderPlot({
+        gg_function_cleaned_data() %>%
+            ggplot(aes(x = DateTime2, y = `CO2 Flux[nmol+1m-2s-1]`)) +
+            geom_point() +
+            labs(title = "CO2 Flux") +
+            theme_classic()
+    })
+    ##gg_plot4 output
+    output$gg_plot4 <- renderPlot({
+        gg_function_cleaned_data() %>%
+            ggplot(aes(x = DateTime2, y = `CO2 Concentration[umol+1mol-1]`)) +
+            geom_point() +
+            labs(title = "CO2 Concentration") +
+            theme_classic()
+    })
+
+    
     
 
 # Download Handlers -------------------------------------------------------
@@ -318,7 +431,20 @@ server <- function(input, output, session) {
         }
     ) #end of download2    
     
-    output$download3 <- downloadHandler(
+    output$ggdownload1 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("greenhouse_gas_", str_replace_all(input$nodename1, fixed(" "), ""),".csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(gg_function_cleaned_data(), file)
+            
+            
+        }
+    ) #end of ggdownload1 
+    
+    output$combine_download1 <- downloadHandler(
         filename = 
             function() {
                 paste0("Combined_data.csv")
@@ -329,7 +455,7 @@ server <- function(input, output, session) {
             
             
         }
-    ) #end of download2   
+    ) #end   
 }
 
 # Run the application 

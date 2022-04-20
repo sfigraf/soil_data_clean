@@ -188,3 +188,29 @@ data2 <- data1 %>%
 #   Node2 <- Node_1 %>%
 #     rename( = column_name[i])
 # }
+
+
+x %>%
+  ggplot(aes(x = DateTime2, y = `N2O_Flux[nmol+1m-2s-1]`)) +
+  geom_point() +
+  labs(title = "N2O Flux") +
+  theme_classic()
+
+x %>%
+  ggplot(aes(x = DateTime2, y = `N2O Concentration[nmol+1mol-1]`)) +
+  geom_point() +
+  labs(title = "N2O Concentration") +
+  theme_classic()
+
+x %>%
+  ggplot(aes(x = DateTime2, y = `CO2 Flux[nmol+1m-2s-1]`)) +
+  geom_point() +
+  labs(title = "CO2 Flux") +
+  theme_classic()
+
+x %>%
+  ggplot(aes(x = DateTime2, y = `CO2 Concentration[umol+1mol-1]`)) +
+  geom_point() +
+  labs(title = "CO2 Concentration") +
+  theme_classic()
+
