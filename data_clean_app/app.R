@@ -12,7 +12,7 @@
 # tab for combining, with multiple file uploads
 #start/ends/values updating in ui with file upload: attempted not succeeded
 # combine tabs in "oxygen" tab so plot and data are right next to each other in the tabs
-
+ # update access token (make permanent) so that I can keep updating github
 # each time you click update data, will sequentially take off selected outlier dates; so each time you press buttion it "adds on"/substracts from df
  
 library(shiny)

@@ -118,3 +118,73 @@ all <- bind_rows(x)
 
 ??rbindlist
 library(data.table)
+
+
+# Greenhouse gas stuff ----------------------------------------------------
+
+library(readxl)
+Node_1 <- read_excel("data_clean_app/Node 1_cleaned_021722.xlsx", 
+                                    sheet = "Node 1_cleaned_021722", col_types = c("date", 
+                                                                                   "text", "text", "text", "text", "text", 
+                                                                                   "text", "text", "text", "text", "text", 
+                                                                                   "text", "text", "text", "text", "text", 
+                                                                                   "text", "text", "text", "text", "text", 
+                                                                                   "text", "text", "text", "text"), 
+                                    skip = 1)
+
+#changing column names so they have units in them
+units <- as.character(Node_1[1,])
+units
+
+colnames1 <- colnames(Node_1)
+#colnames1[1]
+
+
+new_names1 <- c()
+for(i in 1:length(colnames1)) {
+  
+  #print(i)
+  new_name <- paste0(colnames1[i], "_",units[i])
+  new_names1 <- c(new_names1, new_name)
+  ## can't have return statement in for loop; that's why it wasn't running
+  #return(new_names1)
+  
+}
+
+colnames(Node_1) <- new_names1
+#removeds first row
+data1 <- Node_1[-c(1),]
+#changes to numeric types
+
+cols.num <- c(2:3,5:ncol(data1))
+#mutate_at in dplyr would also work
+data1[cols.num] <- sapply(data1[cols.num],as.numeric)
+
+data2 <- data1 %>%
+  rename(DateTime1 = `DATE_TIME initial_value_NA`,
+         `N2O_Flux[nmol+1m-2s-1]` = `FN2O_DRY_[nmol+1m-2s-1]`,
+         `N2O Concentration[nmol+1mol-1]` = `N2O_DRY mean_[nmol+1mol-1]`,
+         `CO2 Flux[nmol+1m-2s-1]` = `FCO2_DRY_[umol+1m-2s-1]`,
+         `CO2 Concentration[umol+1mol-1]` = `CO2_DRY mean_[umol+1mol-1]`
+         ) %>%
+  mutate(DateTime2 = with_tz(DateTime1, tzone = "US/Central"),
+         Date1 = date(DateTime2),
+         #make new column here to correspond to Node
+         ) %>%
+  select(Date1, DateTime2, `N2O_Flux[nmol+1m-2s-1]`,`N2O Concentration[nmol+1mol-1]`,
+         `CO2 Flux[nmol+1m-2s-1]`,`CO2 Concentration[umol+1mol-1]`)
+
+
+
+
+# i = 1
+# for (i in 1:nrow(Node_1)) {
+#   units <- units <- as.character(Node_1[1,])
+#   colnames1 <- colnames(Node_1)
+#   
+#   column_name = as.character(colnames1[i])
+#   
+#   new_column <- paste(column_name, units[i])
+#   Node2 <- Node_1 %>%
+#     rename( = column_name[i])
+# }
