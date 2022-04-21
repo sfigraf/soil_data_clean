@@ -3,14 +3,17 @@
 #start/ends/values updating in ui with file upload: attempted not succeeded
 # combine tabs in "oxygen" tab so plot and data are right next to each other in the tabs
 # each time you click update data, will sequentially take off selected outlier dates; so each time you press buttion it "adds on"/substracts from df
- 
+# add filters to all stuff 
+# double check NA's getting removed correctly
 library(shiny)
 library(shinycssloaders)
+library(plotly)
 library(tidyverse)
 library(lubridate)
 library(readxl)
 library(shinythemes)
 library(DT)
+library(plotly)
 #changes max upload to 600 mb
 options(shiny.maxRequestSize=600*1024^2)
 
@@ -19,6 +22,7 @@ source("functions/greenhouse_gas_function.R") #Node 1_cleaned_021722
 source("functions/vwc_temp_data_prep_function.R")
 source("functions/vwc_function.R")
 source("functions/soil_temp_function.R")
+source("functions/deep_moisture_function.R")
 # Define UI for application that draws a histogram
 ui <- fluidPage(
     
@@ -147,7 +151,7 @@ tabPanel("VWC and Temp Data",
                           downloadButton(outputId = "vwcdownload2", label = "Save this data as CSV"),
                           hr()),
                  
-                 tabPanel("Filtered/Clean Data plots", 
+                 tabPanel("VWC Filtered/Clean Data plots", 
                           withSpinner(plotOutput("vwcplot1"))),
                  
                  ####soil data UI elements
@@ -164,6 +168,43 @@ tabPanel("VWC and Temp Data",
                  
                  tabPanel("Filtered/Clean Soil Temp Data plots", 
                           withSpinner(plotOutput("soiltemp_plot1")))
+                 
+             )#end of tabset panel
+             )#end of mainPanel 
+         ) #end of sidebarLayout
+),# end of clean vwc/temp Tab panel
+
+
+# Deep Moisture UI  -------------------------------------------------------
+tabPanel("Deep Moisture",
+         
+         sidebarLayout(
+             sidebarPanel(
+                 fileInput('dm_file1', 'Insert File', accept = c(".xlsx")),
+                 textInput('dm_file1sheet','Name of Sheet (Case-Sensitive)'),
+                 #textInput('nodename2','Name of Node'),
+                 
+                 
+             ),#end of sidebar panel
+             mainPanel(tabsetPanel(
+                 
+                 tabPanel("Raw Data",
+                          withSpinner(DT::dataTableOutput("dm_table1"))),
+                 tabPanel("Deep Moisture Cleaned Data", 
+                          withSpinner(DT::dataTableOutput("dm_table2")),
+                          hr(),
+                          downloadButton(outputId = "dm_download1", label = "Save this data as CSV"),
+                          hr()),
+                 tabPanel("Deep Moisture Summarized Data", 
+                          withSpinner(DT::dataTableOutput("dm_table3")),
+                          hr(),
+                          downloadButton(outputId = "dm_download2", label = "Save this data as CSV"),
+                          hr()),
+                 
+                 tabPanel("Deep Moisture Filtered/Clean Data plots", 
+                          withSpinner(plotlyOutput("dm_plot1")),
+                          withSpinner(plotlyOutput("dm_plot2"))
+                          ),
                  
              )#end of tabset panel
              )#end of mainPanel 
@@ -355,6 +396,47 @@ server <- function(input, output, session) {
     
     
 
+
+# Upload Deep Moisture Logic ----------------------------------------------
+
+    dm_sheets_name <- reactive({
+        if (!is.null(input$dm_file1)) {
+            return(excel_sheets(path = input$dm_file1$datapath))  
+        } else {
+            return(NULL)
+        }
+    })
+    
+    dm_raw_data <- reactive({
+        if (!is.null(input$dm_file1) && 
+            (input$dm_file1sheet %in% dm_sheets_name())) {
+            data <- read_excel(input$dm_file1$datapath, 
+                               sheet = input$dm_file1sheet,
+                               col_types = c("text", 
+                                             "date", "numeric", "text", "numeric", 
+                                             "numeric", "numeric", "numeric", 
+                                             "numeric", "numeric", "numeric", 
+                                             "numeric", "text", "numeric", "text", 
+                                             "numeric", "text"), skip = 4)
+            return(data)
+        } else {
+            return(NULL)
+        }
+    }) 
+    
+    dm_function_cleaned_data <- reactive({
+        deep_moisture_clean <- deep_moisture_function(dm_raw_data())
+        
+        data_summaries <- deep_moisture_clean %>%
+            group_by(date(`Date & Time_m/d/yr format`), node, depth) %>%
+            summarise(avg_ = mean(`% Vol`)) %>%
+            rename(Date1 = 1)
+        
+        dm_cleaned_data_list <- list("dm_clean" = deep_moisture_clean, "dm_data_summaries1" = data_summaries)
+        return(dm_cleaned_data_list)
+        
+        
+    })
 # Combine Data Upload Logic -----------------------------------------------
 
     combined_data <- reactive({
@@ -566,6 +648,40 @@ server <- function(input, output, session) {
             facet_wrap(vars(sensor_number_and_depth))
     })
 
+# Deep Moisture Outputs ---------------------------------------------------
+
+    output$dm_table1 <- renderDT({
+        datatable(dm_raw_data())
+    })
+    
+    output$dm_table2 <- renderDT({
+        datatable(dm_function_cleaned_data()$dm_clean)
+    })
+    
+    output$dm_table3 <- renderDT({
+        datatable(dm_function_cleaned_data()$dm_data_summaries1)
+    })
+    
+    output$dm_plot1 <- renderPlotly({
+        plot<- dm_function_cleaned_data()$dm_clean %>%
+            ggplot(aes(x = `Date & Time_m/d/yr format`, y = `% Vol`,color = depth, text = node,shape = node)) +
+            geom_point() +
+            theme_classic() +
+            labs(title = "All Deep Moisture Data")
+        
+        ggplotly(plot)
+    })
+    
+    output$dm_plot2 <- renderPlotly({
+        plot<- dm_function_cleaned_data()$dm_data_summaries1 %>%
+            ggplot(aes(x = Date1, y = `avg_`, color = depth,text = node,shape = node)) +
+            geom_point() +
+            theme_classic() +
+            labs(title = "Avg Deep Soil Moisture by Node, Depth, and Day")
+        
+        ggplotly(plot)
+    })
+
 # combine data table ------------------------------------------------------
 
     output$combine_table1 <- renderDT({
@@ -662,6 +778,35 @@ server <- function(input, output, session) {
             
         }
     ) # end of soil temp downloads
+    
+
+# Deep moisture DH's ------------------------------------------------------
+    output$dm_download1 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("deep_moisture_cleaned.csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(dm_function_cleaned_data()$dm_clean, file)
+            
+            
+        }
+    )
+    
+    output$dm_download2 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("deep_moisture_summarized.csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(dm_function_cleaned_data()$dm_data_summaries1, file)
+            
+            
+        }
+    ) # end of soil temp downloads
+    
     output$combine_download1 <- downloadHandler(
         filename = 
             function() {

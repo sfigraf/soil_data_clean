@@ -494,7 +494,7 @@ data3 %>%
 # sumarized
 data_summaries %>%
   #rename(Date1 = `date(`Date & Time_m/d/yr format`)`) %>%
-  ggplot(aes(x = Date1, y = `avg_`, color = depth,linetype = node, )) +
+  ggplot(aes(x = Date1, y = `avg_`, color = depth,text = node, shape = node)) +
   geom_point() +
   theme_classic() +
   labs(title = "Avg Deep Soil Moisture bby Node, Depth, and Day")
