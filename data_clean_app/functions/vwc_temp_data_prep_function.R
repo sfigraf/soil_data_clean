@@ -1,4 +1,4 @@
-vwc_temp_prep_function <- function(vwc_temp_excel_data, sheet_name) {
+vwc_temp_prep_function <- function(vwc_temp_excel_data) {
   
   data_05 <- vwc_temp_excel_data
   #gets a string of units to add onto column names
@@ -22,7 +22,7 @@ vwc_temp_prep_function <- function(vwc_temp_excel_data, sheet_name) {
   colnames(data_05) <- new_names1
   
   #takes off first two rows
-  data1 <- vwc[-c(1:2),]
+  data1 <- data_05[-c(1:2),]
   
   return(data1)
   

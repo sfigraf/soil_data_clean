@@ -327,3 +327,186 @@ data4_1 %>%
 #?filter_all
 
 
+# Temp data ---------------------------------------------------------------
+
+#same uplaod structure as before
+temp <- read_excel("data_clean_app/O2 temp and VWC data_all nodes_June21-Feb22.xlsx", 
+                  sheet = "Node 1_", col_types = c("date", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text", "text", "text", 
+                                                   "text", "text", "text"), skip = 1)
+temp_prepped <- vwc_temp_prep_function(temp)
+
+data2 <- temp_prepped %>%
+  select(TIMESTAMP_, 
+         #5cm
+         `SoilT1_Avg_Deg C`, 
+         `SoilT3_Avg_Deg C`, 
+         `SoilT5_Avg_Deg C`, 
+         `SoilT7_Avg_Deg C`,
+         `SoilT9_Avg_Deg C`,
+         
+         #15 cm
+         `SoilT2_Avg_Deg C`,
+         `SoilT4_Avg_Deg C`,
+         `SoilT6_Avg_Deg C`,
+         `SoilT8_Avg_Deg C`,
+         `SoilT0_Avg_Deg C`) %>%
+  rename(
+    `SoilT1_Avg_Deg C_5cm`  = `SoilT1_Avg_Deg C`,
+    `SoilT3_Avg_Deg C_5cm`  = `SoilT3_Avg_Deg C`,
+    `SoilT5_Avg_Deg C_5cm`  = `SoilT5_Avg_Deg C`,
+    `SoilT7_Avg_Deg C_5cm` = `SoilT7_Avg_Deg C`,
+    `SoilT9_Avg_Deg C_5cm` = `SoilT9_Avg_Deg C`,
+    
+    #15 cm
+    `SoilT2_Avg_Deg C_15cm` = `SoilT2_Avg_Deg C`,
+    `SoilT4_Avg_Deg C_15cm` = `SoilT4_Avg_Deg C`,
+    `SoilT6_Avg_Deg C_15cm` = `SoilT6_Avg_Deg C`,
+    `SoilT8_Avg_Deg C_15cm` = `SoilT8_Avg_Deg C`,
+    `SoilT0_Avg_Deg C_15cm`  = `SoilT0_Avg_Deg C`) %>%
+  distinct()
+
+#makes "NaN" to NA's, then filters out NA rows across all columns
+data3 <- data2 %>%
+  mutate(across(where(is.character), ~na_if(., "NaN"))) %>%
+  filter_all(any_vars(!is.na(.))) 
+
+data4 <- data3 %>%
+  gather(key = "sensor_number_and_depth", value = "SoilT_Avg_DegCelsius", -TIMESTAMP_) %>%
+  mutate(depth = str_sub(sensor_number_and_depth,18, -1),
+         #node = as.character(sheet_name)
+  ) %>%
+  mutate_at('SoilT_Avg_DegCelsius', as.numeric)
+
+data_summaries <- data4 %>%
+  group_by(TIMESTAMP_,depth) %>%
+  summarize(avg_ = mean(`SoilT_Avg_DegCelsius`))
+
+data4 %>%
+  ggplot(aes(x = TIMESTAMP_, y = `SoilT_Avg_DegCelsius`, color = depth)) +
+  geom_point() +
+  theme_classic() +
+  labs(title = "Soil Temp Data") +
+  facet_wrap(vars(sensor_number_and_depth))
+
+
+
+# Deep soil Moisture ------------------------------------------------------
+
+deep_soil_moisture_all <- read_excel("data_clean_app/O2 temp and VWC data_all nodes_June21-Feb22.xlsx", 
+                                                          sheet = "Deep soil moisture", col_types = c("text", 
+                                                                                                      "date", "numeric", "text", "numeric", 
+                                                                                                      "numeric", "numeric", "numeric", 
+                                                                                                      "numeric", "numeric", "numeric", 
+                                                                                                      "numeric", "text", "numeric", "text", 
+                                                                                                      "numeric", "text"), skip = 4)
+data1 <- deep_soil_moisture_all %>%
+  mutate(node = case_when(Plot=="A" ~ "Node 1",
+                          Plot=="B" ~ "Node 2",
+                          Plot=="C" ~ "Node 3",
+                          Plot=="D" ~ "Node 4")) %>%
+  filter(!is.na(node))
+
+d50_100 <- data1 %>%
+  select(`Date & Time_m/d/yr format`,
+         node, 
+         `% Vol...6`
+        
+        ) %>%
+  rename(`% Vol` = `% Vol...6`) %>%
+  mutate(depth = "50-100")
+
+d200 <- data1 %>%
+  select(`Date & Time_m/d/yr format`,
+         node, 
+         `% Vol...8`
+         
+  ) %>%
+  rename(`% Vol` = `% Vol...8`) %>%
+  mutate(depth = "100-200")
+
+d300 <- data1 %>%
+  select(`Date & Time_m/d/yr format`,
+         node, 
+         `% Vol...10`
+         
+  ) %>%
+  rename(`% Vol` = `% Vol...10`) %>%
+  mutate(depth = "200-300")
+
+d400 <- data1 %>%
+  select(`Date & Time_m/d/yr format`,
+         node, 
+         `% Vol...12`
+         
+  ) %>%
+  rename(`% Vol` = `% Vol...12`) %>%
+  mutate(depth = "300-400")
+
+d600 <- data1 %>%
+  select(`Date & Time_m/d/yr format`,
+         node, 
+         `% Vol...14`
+         
+  ) %>%
+  rename(`% Vol` = `% Vol...14`) %>%
+  mutate(depth = "400-600")
+
+d1000 <- data1 %>%
+  select(`Date & Time_m/d/yr format`,
+         node, 
+         `% Vol...16`
+         
+  ) %>%
+  rename(`% Vol` = `% Vol...16`) %>%
+  mutate(depth = "600-1000")
+
+d_list <- list(d50_100, d200, d300, d400,d600,d1000)
+
+deep_moisture <- bind_rows(d_list)
+
+#gets rid of all rows with a NA in them
+data3 <- deep_moisture %>%
+  na.omit()
+
+data_summaries <- data3 %>%
+  group_by(date(`Date & Time_m/d/yr format`), node, depth) %>%
+  summarise(avg_ = mean(`% Vol`)) %>%
+  rename(Date1 = 1)
+
+#all data
+data3 %>%
+  ggplot(aes(x = `Date & Time_m/d/yr format`, y = `% Vol`,color = depth)) +
+  geom_point() +
+  theme_classic()
+
+# sumarized
+data_summaries %>%
+  #rename(Date1 = `date(`Date & Time_m/d/yr format`)`) %>%
+  ggplot(aes(x = Date1, y = `avg_`, color = depth,linetype = node, )) +
+  geom_point() +
+  theme_classic() +
+  labs(title = "Avg Deep Soil Moisture bby Node, Depth, and Day")
+
+#library(plotly)
+
+ggplotly(x)
+
+# x <- data3 %>%
+#   filter(date(`Date & Time_m/d/yr format`) == "2021-07-26",
+#          depth == "600-1000",
+#          node == "Node 2")
+# 
+# x1 <- x %>%
+#   na.omit()

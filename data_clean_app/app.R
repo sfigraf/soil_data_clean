@@ -18,6 +18,7 @@ source("functions/oxygen_function.R")
 source("functions/greenhouse_gas_function.R") #Node 1_cleaned_021722
 source("functions/vwc_temp_data_prep_function.R")
 source("functions/vwc_function.R")
+source("functions/soil_temp_function.R")
 # Define UI for application that draws a histogram
 ui <- fluidPage(
     
@@ -132,6 +133,7 @@ tabPanel("VWC and Temp Data",
                  
              ),#end of sidebar panel
              mainPanel(tabsetPanel(
+                 
                  tabPanel("Raw Data",
                           withSpinner(DT::dataTableOutput("vwc_temp_table1"))),
                  tabPanel("VWC Cleaned Data", 
@@ -146,8 +148,22 @@ tabPanel("VWC and Temp Data",
                           hr()),
                  
                  tabPanel("Filtered/Clean Data plots", 
-                          withSpinner(plotOutput("vwcplot1"))
-                 ),
+                          withSpinner(plotOutput("vwcplot1"))),
+                 
+                 ####soil data UI elements
+                 tabPanel("Soil Temp Cleaned Data", 
+                          withSpinner(DT::dataTableOutput("soiltemp_table2")),
+                          hr(),
+                          downloadButton(outputId = "soiltemp_download1", label = "Save this data as CSV"),
+                          hr()),
+                 tabPanel("Soil Temp Summarized Data", 
+                          withSpinner(DT::dataTableOutput("soiltemp_table3")),
+                          hr(),
+                          downloadButton(outputId = "soiltemp_download2", label = "Save this data as CSV"),
+                          hr()),
+                 
+                 tabPanel("Filtered/Clean Soil Temp Data plots", 
+                          withSpinner(plotOutput("soiltemp_plot1")))
                  
              )#end of tabset panel
              )#end of mainPanel 
@@ -312,6 +328,7 @@ server <- function(input, output, session) {
         
     }) 
     
+    #when I do filters, I'd want to move these to datareactives section
     vwc_data_clean <- reactive({
         
         vwc_clean <- vwc_function(vwc_temp_prepped_data(), input$nodename2)
@@ -322,6 +339,18 @@ server <- function(input, output, session) {
         
         vwc_cleaned_data_list <- list("vwc_clean" = vwc_clean, "vwc_data_summaries1" = data_summaries)
         return(vwc_cleaned_data_list)
+    })
+    
+    soil_temp_data_clean <- reactive({
+        
+        soiltemp_clean <- soil_temp_function(vwc_temp_prepped_data(), input$nodename2)
+        
+        data_summaries <- soiltemp_clean %>%
+            group_by(TIMESTAMP_,depth) %>%
+            summarize(avg_ = mean(`SoilT_Avg_DegCelsius`))
+        
+        soiltemp_cleaned_data_list <- list("soiltemp_clean" = soiltemp_clean, "soiltemp_data_summaries1" = data_summaries)
+        return(soiltemp_cleaned_data_list)
     })
     
     
@@ -496,7 +525,7 @@ server <- function(input, output, session) {
 
     
 
-# VWC_ and Temp Output Tables and Plots -----------------------------------
+# VWC_ Output Tables and Plots -----------------------------------
 
     output$vwc_temp_table1 <- renderDT({
         datatable(vwc_temp_raw_data())
@@ -516,6 +545,24 @@ server <- function(input, output, session) {
             geom_point() +
             theme_classic() +
             labs(title = "VWC Data") +
+            facet_wrap(vars(sensor_number_and_depth))
+    })
+
+# Soil Temp Outputs ------------------------------------------------------------
+    output$soiltemp_table2 <- renderDT({
+        datatable(soil_temp_data_clean()$soiltemp_clean)
+    })
+    
+    output$soiltemp_table3 <- renderDT({
+        datatable(soil_temp_data_clean()$soiltemp_data_summaries1)
+    })
+    
+    output$soiltemp_plot1 <- renderPlot({
+        soil_temp_data_clean()$soiltemp_clean %>%
+            ggplot(aes(x = TIMESTAMP_, y = `SoilT_Avg_DegCelsius`, color = depth)) +
+            geom_point() +
+            theme_classic() +
+            labs(title = "Soil Temp Data") +
             facet_wrap(vars(sensor_number_and_depth))
     })
 
@@ -590,7 +637,31 @@ server <- function(input, output, session) {
             
         }
     )
+    output$soiltemp_download1 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("soil_temp_cleaned_", str_replace_all(input$nodename2, fixed(" "), ""),".csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(soil_temp_data_clean()$soiltemp_clean, file)
+            
+            
+        }
+    )
     
+    output$soiltemp_download2 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("soil_temp_summarized_", str_replace_all(input$nodename2, fixed(" "), ""),".csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(soil_temp_data_clean()$soiltemp_data_summaries1, file)
+            
+            
+        }
+    ) # end of soil temp downloads
     output$combine_download1 <- downloadHandler(
         filename = 
             function() {
