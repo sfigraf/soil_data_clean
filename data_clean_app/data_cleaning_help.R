@@ -1,6 +1,7 @@
 library(tidyverse)
 library(lubridate)
 library(plotly)
+#alt + left mouse click down to do multi curosr editing
 
 library(readxl)
 
@@ -213,4 +214,116 @@ x %>%
   geom_point() +
   labs(title = "CO2 Concentration") +
   theme_classic()
+
+# Soil VWC Data -----------------------------------------------------------
+
+vwc <- read_excel("data_clean_app/O2 temp and VWC data_all nodes_June21-Feb22.xlsx", 
+                                                          sheet = "Node 1_", col_types = c("date", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text", "text", "text", 
+                                                                                           "text", "text", "text"), skip = 1)
+
+
+units <- as.character(vwc[1,])
+#units
+units2 <- str_replace(units, c("unitless|NA"), "")
+units2
+
+colnames1 <- colnames(vwc)
+
+#str_replace_all(input$nodename1, fixed(" "), "")
+#colnames1[1]
+
+
+new_names1 <- c()
+for(i in 1:length(colnames1)) {
+  
+  #print(i)
+  new_name <- paste0(colnames1[i], "_",units2[i])
+  new_names1 <- c(new_names1, new_name)
+  ## can't have return statement in for loop; that's why it wasn't running
+  #return(new_names1)
+  
+}
+
+colnames(vwc) <- new_names1
+
+cols5cm <- c(`VWC1_Avg_m^3/m^3`,`VWC3_Avg_m^3/m^3`,`VWC5_Avg_m^3/m^3`,
+             `VWC7_Avg_m^3/m^3`, `VWC9_Avg_m^3/m^3`)
+
+cols15cm <- c(`VWC0_Avg_m^3/m^3`,`VWC8_Avg_m^3/m^3`,`VWC6_Avg_m^3/m^3`,
+              `VWC4_Avg_m^3/m^3`,`VWC2_Avg_m^3/m^3`)
+#takes off first two rows
+data1 <- vwc[-c(1:2),]
+# this is where vwc specific stuff starts
+data2 <- data1 %>%
+  select(TIMESTAMP_,
+         `VWC1_Avg_m^3/m^3`,
+         `VWC3_Avg_m^3/m^3`,
+         `VWC5_Avg_m^3/m^3`,
+         `VWC7_Avg_m^3/m^3`, 
+         `VWC9_Avg_m^3/m^3`,#5 cm
+         
+         `VWC0_Avg_m^3/m^3`,
+         `VWC8_Avg_m^3/m^3`,
+         `VWC6_Avg_m^3/m^3`,
+         `VWC4_Avg_m^3/m^3`,
+         `VWC2_Avg_m^3/m^3` #15 cm
+         ) %>%
+  rename(
+    `VWC1_Avg_m^3/m^3_5cm` = `VWC1_Avg_m^3/m^3`,
+    `VWC3_Avg_m^3/m^3_5cm` =          `VWC3_Avg_m^3/m^3`,
+    `VWC5_Avg_m^3/m^3_5cm` =          `VWC5_Avg_m^3/m^3`,
+    `VWC7_Avg_m^3/m^3_5cm` =          `VWC7_Avg_m^3/m^3`, 
+    `VWC9_Avg_m^3/m^3_5cm` =          `VWC9_Avg_m^3/m^3`,
+    
+    `VWC0_Avg_m^3/m^3_15cm` = `VWC0_Avg_m^3/m^3`,
+    `VWC8_Avg_m^3/m^3_15cm` =          `VWC8_Avg_m^3/m^3`,
+    `VWC6_Avg_m^3/m^3_15cm` =          `VWC6_Avg_m^3/m^3`,
+    `VWC4_Avg_m^3/m^3_15cm` =          `VWC4_Avg_m^3/m^3`,
+    `VWC2_Avg_m^3/m^3_15cm` =          `VWC2_Avg_m^3/m^3` 
+    
+  ) %>%
+  distinct()
+
+#turn column types to numeric
+# data3 <- data2 %>%
+#   select(-TIMESTAMP_) %>%
+#   mutate_at(c(2:length(data2)),as.numeric) 
+#x <- data2[!complete.cases(data2), ]
+#makes "NaN" to NA's, then filters out NA rows across all columns
+data3 <- data2 %>%
+  mutate(across(where(is.character), ~na_if(., "NaN"))) %>%
+  filter_all(any_vars(!is.na(.))) 
+
+data4 <- data3 %>%
+  gather(key = "sensor_number_and_depth", value = "VWC_Avg_m^3/m^3", -TIMESTAMP_) %>%
+  mutate(depth = str_sub(sensor_number_and_depth,18, -1),
+         #node = as.character(sheet_name)
+         ) %>%
+  mutate_at('VWC_Avg_m^3/m^3', as.numeric)
+
+data_summaries <- data4 %>%
+  group_by(TIMESTAMP_,depth) %>%
+  summarize(avg_ = mean(`VWC_Avg_m^3/m^3`))
+
+data4_1 %>%
+  ggplot(aes(x = TIMESTAMP_, y = `VWC_Avg_m^3/m^3`, color = depth)) +
+  geom_point() +
+  theme_classic() +
+  labs(title = "VWC Data") +
+  facet_wrap(vars(sensor_number_and_depth))
+
+#?filter_all
+
 

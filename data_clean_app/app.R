@@ -14,8 +14,10 @@ library(DT)
 #changes max upload to 600 mb
 options(shiny.maxRequestSize=600*1024^2)
 
-source("clean_sheet_function.R")
+source("functions/oxygen_function.R")
 source("functions/greenhouse_gas_function.R") #Node 1_cleaned_021722
+source("functions/vwc_temp_data_prep_function.R")
+source("functions/vwc_function.R")
 # Define UI for application that draws a histogram
 ui <- fluidPage(
     
@@ -26,7 +28,7 @@ ui <- fluidPage(
 # Upload and clean oxygen data --------------------------------------------
 
                
-        tabPanel("Upload and Clean Oxygen Data",
+        tabPanel("Oxygen Data",
                  
                  sidebarLayout(
                      sidebarPanel(
@@ -85,7 +87,7 @@ ui <- fluidPage(
 
 # Greenhouse Gas cleaning Tab ---------------------------------------------
 
-tabPanel("Upload and Clean Greenhouse Gas Data",
+tabPanel("Greenhouse Gas Data",
          
          sidebarLayout(
              sidebarPanel(
@@ -119,7 +121,38 @@ tabPanel("Upload and Clean Greenhouse Gas Data",
 
 
 # VWC and soil temp data ----------------------------------------------------------------
-
+tabPanel("VWC and Temp Data",
+         
+         sidebarLayout(
+             sidebarPanel(
+                 fileInput('file3', 'Insert File', accept = c(".xlsx")),
+                 textInput('file3sheet','Name of Sheet (Case-Sensitive)'),
+                 textInput('nodename2','Name of Node'),
+                 
+                 
+             ),#end of sidebar panel
+             mainPanel(tabsetPanel(
+                 tabPanel("Raw Data",
+                          withSpinner(DT::dataTableOutput("vwc_temp_table1"))),
+                 tabPanel("VWC Cleaned Data", 
+                          withSpinner(DT::dataTableOutput("vwctable2")),
+                          hr(),
+                          downloadButton(outputId = "vwcdownload1", label = "Save this data as CSV"),
+                          hr()),
+                 tabPanel("VWC Summarized Data", 
+                          withSpinner(DT::dataTableOutput("vwctable3")),
+                          hr(),
+                          downloadButton(outputId = "vwcdownload2", label = "Save this data as CSV"),
+                          hr()),
+                 
+                 tabPanel("Filtered/Clean Data plots", 
+                          withSpinner(plotOutput("vwcplot1"))
+                 ),
+                 
+             )#end of tabset panel
+             )#end of mainPanel 
+         ) #end of sidebarLayout
+),# end of clean greenhouse gas Tab panel
 
 # Combine Data UI Tab -----------------------------------------------------
 
@@ -231,6 +264,64 @@ server <- function(input, output, session) {
     gg_function_cleaned_data <- reactive({
         gg_function(gg_raw_data(),input$nodename1)
         
+    })
+    
+
+# Upload VWC _temp data logic ---------------------------------------------
+
+    vwc_temp_sheets_name <- reactive({
+        if (!is.null(input$file3)) {
+            return(excel_sheets(path = input$file3$datapath))  
+        } else {
+            return(NULL)
+        }
+    })
+    
+    vwc_temp_raw_data <- reactive({
+        if (!is.null(input$file3) && 
+            (input$file3sheet %in% vwc_temp_sheets_name())) {
+            data <- read_excel(input$file3$datapath, 
+                               sheet = input$file3sheet,
+                               col_types = c("date", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text"), skip = 1) 
+                               
+                               
+            
+            return(data)
+        } else {
+            return(NULL)
+        }
+    })
+    
+    #Warning: Error in : evaluation nested too deeply: infinite recursion / options(expressions=)?
+    #solved because I had named 2 different reactives the same thing (vwc_temp_raw_data). Changed the one below to vwc_temp_prepped_data
+    vwc_temp_prepped_data <- reactive({
+        vwc_temp_prep_function(vwc_temp_raw_data())
+        
+    }) 
+    
+    vwc_data_clean <- reactive({
+        
+        vwc_clean <- vwc_function(vwc_temp_prepped_data(), input$nodename2)
+        
+        data_summaries <- vwc_clean %>%
+            group_by(TIMESTAMP_,depth) %>%
+            summarize(avg_ = mean(`VWC_Avg_m^3/m^3`))
+        
+        vwc_cleaned_data_list <- list("vwc_clean" = vwc_clean, "vwc_data_summaries1" = data_summaries)
+        return(vwc_cleaned_data_list)
     })
     
     
@@ -403,6 +494,30 @@ server <- function(input, output, session) {
     
     
 
+    
+
+# VWC_ and Temp Output Tables and Plots -----------------------------------
+
+    output$vwc_temp_table1 <- renderDT({
+        datatable(vwc_temp_raw_data())
+    })
+
+    output$vwctable2 <- renderDT({
+        datatable(vwc_data_clean()$vwc_clean)
+    })
+
+    output$vwctable3 <- renderDT({
+        datatable(vwc_data_clean()$vwc_data_summaries1)
+    })
+    
+    output$vwcplot1 <- renderPlot({
+        vwc_data_clean()$vwc_clean %>%
+            ggplot(aes(x = TIMESTAMP_, y = `VWC_Avg_m^3/m^3`, color = depth)) +
+            geom_point() +
+            theme_classic() +
+            labs(title = "VWC Data") +
+            facet_wrap(vars(sensor_number_and_depth))
+    })
 
 # combine data table ------------------------------------------------------
 
@@ -449,6 +564,32 @@ server <- function(input, output, session) {
             
         }
     ) #end of ggdownload1 
+    
+    output$vwcdownload1 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("vwc_cleaned_", str_replace_all(input$nodename2, fixed(" "), ""),".csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(vwc_data_clean()$vwc_clean, file)
+            
+            
+        }
+    )
+    
+    output$vwcdownload2 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("vwc_summarized_", str_replace_all(input$nodename2, fixed(" "), ""),".csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(vwc_data_clean()$vwc_data_summaries1, file)
+            
+            
+        }
+    )
     
     output$combine_download1 <- downloadHandler(
         filename = 
