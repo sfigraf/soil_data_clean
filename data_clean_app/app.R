@@ -117,6 +117,10 @@ tabPanel("Upload and Clean Greenhouse Gas Data",
 ),# end of clean greenhouse gas Tab panel
 
 
+
+# VWC and soil temp data ----------------------------------------------------------------
+
+
 # Combine Data UI Tab -----------------------------------------------------
 
 
@@ -317,7 +321,7 @@ server <- function(input, output, session) {
     })
     
 
-# Table Outputs -----------------------------------------------------------
+# Oxygen Table Outputs -----------------------------------------------------------
 
 
     output$table1 <- renderDT({
@@ -334,10 +338,6 @@ server <- function(input, output, session) {
         datatable(cleaned_data()$data_summaries1)
     })
     
-    ##combine_table1 output
-    output$combine_table1 <- renderDT({
-        datatable(combined_data())
-    })
     
     ##plot 1 output
     output$plot1 <- renderPlot({
@@ -403,6 +403,12 @@ server <- function(input, output, session) {
     
     
 
+
+# combine data table ------------------------------------------------------
+
+    output$combine_table1 <- renderDT({
+        datatable(combined_data())
+    })    
 # Download Handlers -------------------------------------------------------
 
     output$download1 <- downloadHandler(
@@ -434,7 +440,7 @@ server <- function(input, output, session) {
     output$ggdownload1 <- downloadHandler(
         filename = 
             function() {
-                paste0("greenhouse_gas_", str_replace_all(input$nodename1, fixed(" "), ""),".csv")
+                paste0("greenhouse_gas_cleaned_", str_replace_all(input$nodename1, fixed(" "), ""),".csv")
             }
         ,
         content = function(file) {

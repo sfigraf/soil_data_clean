@@ -42,7 +42,8 @@ gg_function <- function(gg_input, Node_name) {
            node = Node_name,
     ) %>%
     select(Date1, DateTime2, node, `N2O_Flux[nmol+1m-2s-1]`,`N2O Concentration[nmol+1mol-1]`,
-           `CO2 Flux[nmol+1m-2s-1]`,`CO2 Concentration[umol+1mol-1]`)
+           `CO2 Flux[nmol+1m-2s-1]`,`CO2 Concentration[umol+1mol-1]`) %>%
+    distinct()
   
   return(data2)
 }
