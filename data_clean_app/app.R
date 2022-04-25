@@ -2,9 +2,9 @@
 
 #start/ends/values updating in ui with file upload: attempted not succeeded
 # combine tabs in "oxygen" tab so plot and data are right next to each other in the tabs
-# each time you click update data, will sequentially take off selected outlier dates; so each time you press buttion it "adds on"/substracts from df
 # add filters to all stuff 
 # double check NA's getting removed correctly
+# add text input to show that sliders won't re-update oxygen data; only changing node name will
 library(shiny)
 library(shinycssloaders)
 library(plotly)
@@ -39,19 +39,19 @@ ui <- fluidPage(
                      sidebarPanel(
                          fileInput('file1', 'Insert File', accept = c(".xlsx")),
                          textInput('file1sheet','Name of Sheet (Case-Sensitive)'),
-                         sliderInput("slider1", "Oxygen Range",
+                         sliderInput("slider1", "Oxygen Range to Include",
                                      min = 0,
                                      max = 50,  
                                      value = c(10,30),
                                      step = 1),
-                         checkboxInput("checkbox1", "Take out Oxygen Range based on Dates?"),
+                         checkboxInput("checkbox1", "Exclude Oxygen Range based on Dates?"),
                          hr(),
                          conditionalPanel(condition = "input.checkbox1 == true",
                                           dateRangeInput("drange1",
                                                          "Date you want to take off",
                                                          start = "2021-06-01",
                                                          end = "2021-07-10"),
-                                          sliderInput("slider2", "Oxygen range to take out of data between selected date range above",
+                                          sliderInput("slider2", "Oxygen range to exclude between selected date range above",
                                                       min = 0,
                                                       max = 50,  
                                                       value = c(10,30),
@@ -282,10 +282,7 @@ server <- function(input, output, session) {
     })
     
     
-    function_cleaned_data <- reactive({
-        clean_sheet_function(raw_data(),input$file1sheet)
-        
-    })
+    
     
 
 # Upload Greenhouse gas Data Logic ----------------------------------------
@@ -473,18 +470,46 @@ server <- function(input, output, session) {
     
 
 # Data reactives ----------------------------------------------------------
+    #function that initally cleans the data
+    function_cleaned_data <- reactive({
+        
+        #crucial: was crashing before if there wasn't valid data uploaded
+        #in order for raw_data() to not be NULL, a valid datafile and sheet name needs to be entered/uploaded
+        
+        validate(
+            need(!is.null(raw_data() ), "Please upload a data set")
+        )
+        
+        clean_sheet_function(raw_data(),input$file1sheet)
 
+    })
+    #creates reactive vals to be modified
+    # 
+    oxygen_mod_df <- shiny::reactiveValues(cleaned = NULL, summaries = NULL)
     
+    #assigns each reactive values a dataframe
+    observe({
+        oxygen_mod_df$cleaned <- function_cleaned_data()
+        
+        oxygen_mod_df$summaries <- function_cleaned_data() %>%
+            group_by(TIMESTAMP, depth) %>%
+            #mutate(avg2 = mean(value1))
+            summarise(avg1 = mean(value1)) %>%
+            mutate(node_x = as.character(input$file1sheet))
+    })
+    
+    #creates proxies to use for datatables
+    oxygen_cleaned_proxy <- DT::dataTableProxy('table2')
+    oxygen_summaries_proxy <- DT::dataTableProxy('table3')
     
  
-    cleaned_data <- eventReactive(input$button1,{
-        print(max(function_cleaned_data()$value1))
+    observeEvent(input$button1,{
+        #print(max(function_cleaned_data()$value1))
         #if checkbox is pressed to modify values with date range, then use slider2 and dateragne inputs in addition to slider1
-
         if (input$checkbox1 == TRUE) {
             
             
-            filtered_clean <- function_cleaned_data() %>%
+            filtered_clean <- oxygen_mod_df$cleaned %>%
                 filter(
                     value1 >= input$slider1[1] & value1 <= input$slider1[2]
                 )
@@ -493,33 +518,33 @@ server <- function(input, output, session) {
                 #filter(between(TIMESTAMP, as.Date("2021-06-01"), as.Date("2021-07-10")))
                 filter((TIMESTAMP >= input$drange1[1] & TIMESTAMP <= input$drange1[2]),
                        value1 >= input$slider2[1] & value1 <= input$slider2[2]
-                       )
+                )
             #this takes these rows out of the main dataframe
-            filtered_clean2 <- anti_join(filtered_clean, problem_rows)
+            oxygen_mod_df$cleaned <- anti_join(filtered_clean, problem_rows)
             
-            data_summaries <- filtered_clean2 %>%
-                # mutate(depth = str_sub(sensor_number_and_depth, 6, -1),
-                #        node = as.character(sheet_name)) %>%
+            oxygen_mod_df$summaries <- oxygen_mod_df$cleaned %>%
+                
                 group_by(TIMESTAMP, depth) %>%
-                #mutate(avg2 = mean(value1))
                 summarise(avg1 = mean(value1)) %>%
                 mutate(node_x = as.character(input$file1sheet))
+            
         } else { #if checkbox not pressed, just use slider1 inputs
-            filtered_clean2 <- function_cleaned_data() %>%
+            oxygen_mod_df$cleaned <- function_cleaned_data() %>%
                 filter(
                     value1 >= input$slider1[1] & value1 <= input$slider1[2]
                 )
             
             #each entry sometimes has multiple data points for each timestamp, so this code gives averages for each depth by timestamp
-            data_summaries <- filtered_clean2 %>%
+            oxygen_mod_df$summaries <- oxygen_mod_df$cleaned %>%
                 group_by(TIMESTAMP, depth) %>%
-                #mutate(avg2 = mean(value1))
                 summarise(avg1 = mean(value1)) %>%
                 mutate(node_x = as.character(input$file1sheet))
         }
         
-        cleaned_data_list <- list("cleaned_data2" = filtered_clean2, "data_summaries1" = data_summaries)
-        return(cleaned_data_list)
+        DT::replaceData(oxygen_cleaned_proxy, oxygen_mod_df$cleaned)
+        DT::replaceData(oxygen_summaries_proxy, oxygen_mod_df$summaries)
+        # cleaned_data_list <- list("cleaned_data2" = filtered_clean2, "data_summaries1" = data_summaries)
+        # return(cleaned_data_list)
     })
     
 
@@ -529,30 +554,31 @@ server <- function(input, output, session) {
     output$table1 <- renderDT({
         datatable(raw_data(), editable = TRUE)
     })
-
+    
+    oxygen_proxy <- DT::dataTableProxy('table2')
     ##table 2 output
     output$table2 <- renderDT({
-        datatable(cleaned_data()$cleaned_data2)
+        datatable(oxygen_mod_df$cleaned)
     })
     
     ##table 3 output
     output$table3 <- renderDT({
-        datatable(cleaned_data()$data_summaries1)
+        datatable(oxygen_mod_df$summaries)
     })
     
     
     ##plot 1 output
-    output$plot1 <- renderPlot({
-        ggplot(function_cleaned_data()) +
-            aes(x = TIMESTAMP, y = value1) +
-            geom_point(shape = "circle", size = 1.5, colour = "#112446") +
-            theme_minimal() +
-            facet_wrap(vars(sensor_number_and_depth)) +
-            labs(title = "Not Cleaned data visual")
-    })
+    # output$plot1 <- renderPlot({
+    #     ggplot(cleaned_data()$cleaned_data2) +
+    #         aes(x = TIMESTAMP, y = value1) +
+    #         geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+    #         theme_minimal() +
+    #         facet_wrap(vars(sensor_number_and_depth)) +
+    #         labs(title = "Not Cleaned data visual")
+    # })
     #plot 2 output
     output$plot2 <- renderPlot({
-        ggplot(cleaned_data()$cleaned_data2) +
+        ggplot(oxygen_mod_df$cleaned) +
             aes(x = TIMESTAMP, y = value1) +
             geom_point(shape = "circle", size = 1.5, colour = "#112446") +
             theme_minimal() +
@@ -692,11 +718,11 @@ server <- function(input, output, session) {
     output$download1 <- downloadHandler(
         filename = 
             function() {
-                paste0("Cleaned_data_", str_replace_all(input$file1sheet, fixed(" "), ""), ".csv")
+                paste0("Oxygen_Cleaned_data_", str_replace_all(input$file1sheet, fixed(" "), ""), ".csv")
             }
         ,
         content = function(file) {
-            write_csv(cleaned_data()$cleaned_data2, file)
+            write_csv(oxygen_mod_df$cleaned, file)
             
             
         }
@@ -705,11 +731,11 @@ server <- function(input, output, session) {
     output$download2 <- downloadHandler(
         filename = 
             function() {
-                paste0("Data_summaries_", str_replace_all(input$file1sheet, fixed(" "), ""),".csv")
+                paste0("Oxygen_Data_summaries_", str_replace_all(input$file1sheet, fixed(" "), ""),".csv")
             }
         ,
         content = function(file) {
-            write_csv(cleaned_data()$data_summaries1, file)
+            write_csv(oxygen_mod_df$summaries, file)
             
             
         }
