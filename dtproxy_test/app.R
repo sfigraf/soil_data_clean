@@ -3,18 +3,18 @@ library(tidyverse)
 library(DT)
 library(readxl)
 #df <- dplyr::tibble(Height = "185", Weight = "95")
-df <- read_excel("O2 temp and VWC data_all nodes_June21-Feb22.xlsx",
-                 sheet = "Node 1", col_types = c("date",
-                                                 "text", "text", "text", "numeric",
-                                                 "numeric", "numeric", "numeric",
-                                                 "numeric", "numeric", "numeric",
-                                                 "numeric", "numeric", "numeric",
-                                                 "text", "text", "text", "text", "text",
-                                                 "text", "text", "text", "text", "text",
-                                                 "text", "text", "text", "text", "text",
-                                                 "text", "text", "text", "text", "text"),
-
-                 skip = 1)
+# df <- read_excel("O2 temp and VWC data_all nodes_June21-Feb22.xlsx",
+#                  sheet = "Node 1", col_types = c("date",
+#                                                  "text", "text", "text", "numeric",
+#                                                  "numeric", "numeric", "numeric",
+#                                                  "numeric", "numeric", "numeric",
+#                                                  "numeric", "numeric", "numeric",
+#                                                  "text", "text", "text", "text", "text",
+#                                                  "text", "text", "text", "text", "text",
+#                                                  "text", "text", "text", "text", "text",
+#                                                  "text", "text", "text", "text", "text"),
+# 
+#                  skip = 1)
 source("oxygen_function.R")
 # df <- clean_sheet_function(df, "Node 1")
 
@@ -29,11 +29,11 @@ ui <- fluidPage(
         # Sidebar panel for inputs ----
         sidebarPanel(
 
-            # Input: Slider for the number of bins ----
-            shiny::textInput(inputId = "height", label = "height"),
-            shiny::textInput(inputId = "nodename1", label = "Nodename"),
+            
+            fileInput('file1', 'Insert File', accept = c(".xlsx")),
+            textInput('file1sheet','Name of Sheet (Case-Sensitive)'),
+            #shiny::textInput(inputId = "nodename1", label = "Nodename"),
 
-            shiny::actionButton(inputId = "add", label = "Add"),
 
             # shiny::selectInput(inputId = "remove_row", label = "Remove Row",
             #                    choices = 1:nrow(df)),
@@ -64,6 +64,7 @@ ui <- fluidPage(
 
             # Output: Histogram ----
             DT::DTOutput(outputId = "table"),
+            DT::DTOutput(outputId = "table2"),
             downloadButton(outputId = "soiltemp_download2", label = "Save this data as CSV")
 
 
@@ -140,26 +141,84 @@ ui <- fluidPage(
 # shinyApp(ui = ui, server = server)
 # Define server logic required to draw a histogram ----
 server <- function(input, output, session) {
+    
+
+# raw data part -----------------------------------------------------------
+
+    sheets_name <- reactive({
+        if (!is.null(input$file1)) {
+            return(excel_sheets(path = input$file1$datapath))  
+        } else {
+            return(NULL)
+        }
+    })
+    
+    raw_data <- reactive({
+        
+        # validate(
+        #     need(input$file1 != "", "Please upload a data set")
+        # )
+        # 
+        # validate(
+        #     need(input$file1sheet != "", "Please choose a sheet")
+        # )
+        
+        # if you put in the wrong name of the sheet, the app will crash...
+        #easiest solution should be to 
+        if (!is.null(input$file1) && 
+            (input$file1sheet %in% sheets_name())) {
+            data <- read_excel(input$file1$datapath, 
+                               sheet = input$file1sheet,
+                               col_types = c("date", 
+                                             "text", "text", "text", "numeric", 
+                                             "numeric", "numeric", "numeric", 
+                                             "numeric", "numeric", "numeric", 
+                                             "numeric", "numeric", "numeric", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text", 
+                                             "text", "text", "text", "text", "text"), 
+                               
+                               skip = 1)
+            
+            return(data)
+        } else {
+            return(NULL)
+        }
+    })    
 
     #important to continuously remove values and prevent values from being added back to the table
 
     function_cleaned_data <- reactive({
-        clean_sheet_function(df,input$nodename1)
+        
+        #crucial: was crashing before if there wasn't valid data uploaded
+        #in order for raw_data() to not be NULL, a valid datafile and sheet name needs to be entered/uploaded
+        validate(
+            need(!is.null(raw_data() ), "Please upload a data set")
+        )
+        clean_sheet_function(raw_data(),input$file1sheet)
         #can try putting filters inside this?
 
     })
 
     # need to set this to null at first; for some reason the reactiveValues() function doesn't work super well with reactives
     # that's why mod_df$x is set/altered below in an observe context
-    mod_df <- reactiveValues(x = NULL) 
+    mod_df <- reactiveValues(x = NULL, y = NULL) 
     
     # this observe has to be outside the filters below because we want each button press to decrease the amount of rows in the table; 
     #otherwise, the function will just reset each time the button is pressed
     observe({
        mod_df$x <- function_cleaned_data()
+       mod_df$y <- function_cleaned_data() %>%
+           group_by(TIMESTAMP, depth) %>%
+           #mutate(avg2 = mean(value1))
+           summarise(avg1 = mean(value1)) %>%
+           mutate(node_x = as.character(input$file1sheet))
     })
     
-    proxy <- DT::dataTableProxy('table')
+    proxy1 <- DT::dataTableProxy('table')
+    proxy2 <- DT::dataTableProxy('table2')
+    
     
 
     observeEvent(input$button1, {
@@ -175,7 +234,17 @@ server <- function(input, output, session) {
         #this takes these rows out of the main dataframe
         #x is not x() because
         mod_df$x <- anti_join(mod_df$x, problem_rows)
-        DT::replaceData(proxy, mod_df$x)
+        
+        mod_df$y <- mod_df$x %>%
+            group_by(TIMESTAMP, depth) %>%
+            #mutate(avg2 = mean(value1))
+            summarise(avg1 = mean(value1)) %>%
+            mutate(node_x = as.character(input$file1sheet))
+        
+        
+        DT::replaceData(proxy1, mod_df$x)
+        DT::replaceData(proxy2, mod_df$y)
+        
 
     })
 
@@ -184,6 +253,12 @@ server <- function(input, output, session) {
     #error: attempt to apply non-function once occurred because of using mod_df$x()
         mod_df$x
 
+    })
+    
+    output$table2 <- DT::renderDT({
+        #error: attempt to apply non-function once occurred because of using mod_df$x()
+        mod_df$y
+        
     })
 
 
