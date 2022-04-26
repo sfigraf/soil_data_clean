@@ -27,7 +27,7 @@ source("functions/deep_moisture_function.R")
 ui <- fluidPage(
     
     navbarPage(title = "Soil data wrangle!!",
-               theme = shinytheme("yeti"), #end of navbar page arguments; what follow is all inside it
+               theme = shinytheme("united"), #end of navbar page arguments; what follow is all inside it
                
 
 # Upload and clean oxygen data --------------------------------------------
@@ -54,7 +54,7 @@ ui <- fluidPage(
                                           sliderInput("slider2", "Oxygen range to exclude between selected date range above",
                                                       min = 0,
                                                       max = 50,  
-                                                      value = c(10,30),
+                                                      value = c(0,30),
                                                       step = 1)
                          ),# end of conditional panel
                          
@@ -99,17 +99,39 @@ tabPanel("Greenhouse Gas Data",
                  fileInput('file2', 'Insert File', accept = c(".xlsx")),
                  textInput('file2sheet','Name of Sheet (Case-Sensitive)'),
                  textInput('nodename1','Name of Node'),
-                 
+                 sliderInput("gg_n2o_flux_slider","N2O Flux Range",
+                             min = 0,
+                             max = 50,  
+                             value = c(0,30),
+                             step = 1)
                  
              ),#end of sidebar panel
              mainPanel(tabsetPanel(
                  tabPanel("Raw Data",
                           withSpinner(DT::dataTableOutput("ggtable1"))),
                  tabPanel("Cleaned Data", 
-                          withSpinner(DT::dataTableOutput("ggtable2")),
+                          withSpinner(DT::dataTableOutput("gg_n2o_flux_table")),
                           hr(),
                           downloadButton(outputId = "ggdownload1", label = "Save this data as CSV"),
-                          hr()),
+                          hr(),
+                          
+                          withSpinner(DT::dataTableOutput("gg_n2o_conc_table")),
+                          hr(),
+                          downloadButton(outputId = "ggdownload2", label = "Save this data as CSV"),
+                          hr(),
+                          
+                          withSpinner(DT::dataTableOutput("gg_co2_flux_table")),
+                          hr(),
+                          downloadButton(outputId = "ggdownload3", label = "Save this data as CSV"),
+                          hr(),
+                          
+                          withSpinner(DT::dataTableOutput("gg_co2_conc_table")),
+                          hr(),
+                          downloadButton(outputId = "ggdownload4", label = "Save this data as CSV"),
+                          hr(),
+                          ), #end of clean_data_tab
+                 
+                 
                  
                  tabPanel("Filtered/Clean Data plots", 
                           withSpinner(plotOutput("gg_plot1")),
@@ -240,7 +262,7 @@ tabPanel("Deep Moisture",
     
     
     #tableOutput("value")
-)
+) # end of UI tab
 
 # Server ------------------------------------------------------------------
 
@@ -280,8 +302,7 @@ server <- function(input, output, session) {
             return(NULL)
         }
     })
-    
-    
+
     
     
 
@@ -315,10 +336,6 @@ server <- function(input, output, session) {
         }
     })
     
-    gg_function_cleaned_data <- reactive({
-        gg_function(gg_raw_data(),input$nodename1)
-        
-    })
     
 
 # Upload VWC _temp data logic ---------------------------------------------
@@ -362,6 +379,10 @@ server <- function(input, output, session) {
     #Warning: Error in : evaluation nested too deeply: infinite recursion / options(expressions=)?
     #solved because I had named 2 different reactives the same thing (vwc_temp_raw_data). Changed the one below to vwc_temp_prepped_data
     vwc_temp_prepped_data <- reactive({
+        
+        validate(
+            need(!is.null(vwc_temp_raw_data() ), "Please upload a data set")
+        )
         vwc_temp_prep_function(vwc_temp_raw_data())
         
     }) 
@@ -442,6 +463,9 @@ server <- function(input, output, session) {
         #erase duplicates just in case; shouldn't be any since duplicates are also erased in data_cleaning process
         all_1 <- all %>%
             distinct()
+        
+        # new_df <- left_join(input$uploaded1, input$upload2, by ="TIMESTAMP")
+        # list1 <- list(all_1, new_df)
         return(all_1)
     })
     
@@ -469,7 +493,7 @@ server <- function(input, output, session) {
     
     
 
-# Data reactives ----------------------------------------------------------
+# Oxygen Data reactives ----------------------------------------------------------
     #function that initally cleans the data
     function_cleaned_data <- reactive({
         
@@ -485,7 +509,7 @@ server <- function(input, output, session) {
     })
     #creates reactive vals to be modified
     # 
-    oxygen_mod_df <- shiny::reactiveValues(cleaned = NULL, summaries = NULL)
+    oxygen_mod_df <- reactiveValues(cleaned = NULL, summaries = NULL)
     
     #assigns each reactive values a dataframe
     observe({
@@ -548,6 +572,27 @@ server <- function(input, output, session) {
     })
     
 
+
+# Greenhouse Gas Data reactives -------------------------------------------
+    gg_function_cleaned_data <- reactive({
+        
+        validate(
+            need(!is.null(gg_raw_data()), "Please upload a data set")
+        )
+        gg_function(gg_raw_data(),input$nodename1)
+        
+    })
+    
+    n2o_flux_cleaned <- reactive({
+        
+        gg_function_cleaned_data()$n2o_flux %>%
+            filter(
+                `N2O_Flux[nmol+1m-2s-1]` >= input$gg_n2o_flux_slider[1] & `N2O_Flux[nmol+1m-2s-1]` <= input$gg_n2o_flux_slider[2]
+            )
+        
+    })
+    
+    
 # Oxygen Table Outputs -----------------------------------------------------------
 
 
@@ -555,7 +600,7 @@ server <- function(input, output, session) {
         datatable(raw_data(), editable = TRUE)
     })
     
-    oxygen_proxy <- DT::dataTableProxy('table2')
+    #oxygen_proxy <- DT::dataTableProxy('table2')
     ##table 2 output
     output$table2 <- renderDT({
         datatable(oxygen_mod_df$cleaned)
@@ -567,15 +612,15 @@ server <- function(input, output, session) {
     })
     
     
-    ##plot 1 output
-    # output$plot1 <- renderPlot({
-    #     ggplot(cleaned_data()$cleaned_data2) +
-    #         aes(x = TIMESTAMP, y = value1) +
-    #         geom_point(shape = "circle", size = 1.5, colour = "#112446") +
-    #         theme_minimal() +
-    #         facet_wrap(vars(sensor_number_and_depth)) +
-    #         labs(title = "Not Cleaned data visual")
-    # })
+    #plot 1 output
+    output$plot1 <- renderPlot({
+        ggplot(function_cleaned_data()) +
+            aes(x = TIMESTAMP, y = value1) +
+            geom_point(shape = "circle", size = 1.5, colour = "#112446") +
+            theme_minimal() +
+            facet_wrap(vars(sensor_number_and_depth)) +
+            labs(title = "Not Cleaned data visual")
+    })
     #plot 2 output
     output$plot2 <- renderPlot({
         ggplot(oxygen_mod_df$cleaned) +
@@ -591,13 +636,25 @@ server <- function(input, output, session) {
         datatable(gg_raw_data())
     })
     
-    output$ggtable2 <- renderDT({
-        datatable(gg_function_cleaned_data())
+    output$gg_n2o_flux_table <- renderDT({
+        datatable(n2o_flux_cleaned() )
+    })
+    
+    output$gg_n2o_conc_table <- renderDT({
+        datatable(gg_function_cleaned_data()$n2o_conc)
+    })
+    
+    output$gg_co2_flux_table <- renderDT({
+        datatable(gg_function_cleaned_data()$co2_flux)
+    })
+    
+    output$gg_co2_conc_table <- renderDT({
+        datatable(gg_function_cleaned_data()$co2_conc)
     })
     
     ##gg_plot1 output
     output$gg_plot1 <- renderPlot({
-        gg_function_cleaned_data() %>%
+        n2o_flux_cleaned() %>%
             ggplot(aes(x = DateTime2, y = `N2O_Flux[nmol+1m-2s-1]`)) +
             geom_point() +
             labs(title = "N2O Flux") +
@@ -605,7 +662,7 @@ server <- function(input, output, session) {
     })
     ##gg_plot2 output
     output$gg_plot2 <- renderPlot({
-        gg_function_cleaned_data() %>%
+        gg_function_cleaned_data()$n2o_conc %>%
             ggplot(aes(x = DateTime2, y = `N2O Concentration[nmol+1mol-1]`)) +
             geom_point() +
             labs(title = "N2O Concentration") +
@@ -613,7 +670,7 @@ server <- function(input, output, session) {
     })
     ##gg_plot3 output
     output$gg_plot3 <- renderPlot({
-        gg_function_cleaned_data() %>%
+        gg_function_cleaned_data()$co2_flux %>%
             ggplot(aes(x = DateTime2, y = `CO2 Flux[nmol+1m-2s-1]`)) +
             geom_point() +
             labs(title = "CO2 Flux") +
@@ -621,7 +678,7 @@ server <- function(input, output, session) {
     })
     ##gg_plot4 output
     output$gg_plot4 <- renderPlot({
-        gg_function_cleaned_data() %>%
+        gg_function_cleaned_data()$co2_conc %>%
             ggplot(aes(x = DateTime2, y = `CO2 Concentration[umol+1mol-1]`)) +
             geom_point() +
             labs(title = "CO2 Concentration") +
@@ -740,15 +797,57 @@ server <- function(input, output, session) {
             
         }
     ) #end of download2    
+
+# Greenshouse Gas Download Handlers ----------------------------------------
+
     
     output$ggdownload1 <- downloadHandler(
         filename = 
             function() {
-                paste0("greenhouse_gas_cleaned_", str_replace_all(input$nodename1, fixed(" "), ""),".csv")
+                paste0("greenhouse_gas_n2o_flux_cleaned_", str_replace_all(input$nodename1, fixed(" "), ""),".csv")
             }
         ,
         content = function(file) {
-            write_csv(gg_function_cleaned_data(), file)
+            write_csv(n2o_flux_cleaned() , file)
+            
+            
+        }
+    ) #end of ggdownload1 
+    
+    output$ggdownload2 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("greenhouse_gas_n2o_conc_cleaned_", str_replace_all(input$nodename1, fixed(" "), ""),".csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(gg_function_cleaned_data()$n2o_conc , file)
+            
+            
+        }
+    ) #end of ggdownload1 
+    
+    output$ggdownload3 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("greenhouse_gas_co2_flux_cleaned_", str_replace_all(input$nodename1, fixed(" "), ""),".csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(gg_function_cleaned_data()$co2_flux , file)
+            
+            
+        }
+    ) #end of ggdownload1 
+    
+    output$ggdownload4 <- downloadHandler(
+        filename = 
+            function() {
+                paste0("greenhouse_gas_co2_conc_cleaned_", str_replace_all(input$nodename1, fixed(" "), ""),".csv")
+            }
+        ,
+        content = function(file) {
+            write_csv(gg_function_cleaned_data()$co2_conc, file)
             
             
         }

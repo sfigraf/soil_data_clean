@@ -1,6 +1,8 @@
 library(tidyverse)
 library(lubridate)
 gg_function <- function(gg_input, Node_name) {
+  # gg_input<- Node_1
+  # Node_name <- "Node 1"
   
   data_05 <- gg_input
   units <- as.character(data_05[1,])
@@ -45,7 +47,24 @@ gg_function <- function(gg_input, Node_name) {
            `CO2 Flux[nmol+1m-2s-1]`,`CO2 Concentration[umol+1mol-1]`) %>%
     distinct()
   
-  return(data2)
+  n2O_flux_only <- data2 %>%
+    select(Date1,DateTime2,node,`N2O_Flux[nmol+1m-2s-1]`)
+  
+  n2O_conc_only <- data2 %>%
+    select(Date1,DateTime2,node, `N2O Concentration[nmol+1mol-1]`)
+  
+  co2_flux_only <- data2 %>%
+    select(Date1,DateTime2,node,`CO2 Flux[nmol+1m-2s-1]`)
+  
+  co2_conc_only <- data2 %>%
+    select(Date1,DateTime2,node,`CO2 Concentration[umol+1mol-1]`)
+  
+  list1 <- list("n2o_flux"= n2O_flux_only, "n2o_conc" = n2O_conc_only,
+                "co2_flux"= co2_flux_only, "co2_conc" = co2_conc_only)
+  
+  
+  return(list1)
 }
+
 
 #x <- gg_function(Node_1, "Node 1")

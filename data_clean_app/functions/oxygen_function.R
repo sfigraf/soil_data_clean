@@ -58,7 +58,7 @@ clean_sheet_function <- function(excel_sheet_data, sheet_name) {
   
 }
 
-# x <- clean_sheet_function(data, "Node 1")
+#x <- clean_sheet_function(data, "Node 1")
 # excel_sheet_data <- data
 # sheet_name <- "Node 1"
 

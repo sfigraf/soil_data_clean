@@ -55,4 +55,4 @@ vwc_function <- function(prepped_vwc_data_input, sheet_name) {
 }
 
 # prepped_data <- vwc_temp_prep_function(vwc)
-# data4_1 <- vwc_function(prepped_data)
+# data4_1 <- vwc_function(prepped_data, "node 1")
