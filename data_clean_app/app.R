@@ -24,6 +24,7 @@ source("functions/vwc_temp_data_prep_function.R")
 source("functions/vwc_function.R")
 source("functions/soil_temp_function.R")
 source("functions/deep_moisture_function.R")
+source("functions/utils.R")
 # Define UI for application that draws a histogram
 ui <- fluidPage(
     
@@ -38,9 +39,10 @@ ui <- fluidPage(
                  sidebarLayout(
                      sidebarPanel(
                          fileInput('file1', 'Insert File', accept = c(".xlsx")),
-                         pickerInput("file1_picker", "Sheet Name", choices = NULL,
-                                     selected = NULL,
-                                     multiple = FALSE),
+                         pickerInput01("file1_picker"),
+                         # pickerInput("file1_picker", "Sheet Name", choices = NULL,
+                         #             selected = NULL,
+                         #             multiple = FALSE),
                          #textInput('file1sheet','Name of Sheet (Case-Sensitive)'),
                          sliderInput("slider1", "Oxygen Range to Include",
                                      min = 0,
@@ -100,7 +102,7 @@ tabPanel("Greenhouse Gas Data",
          sidebarLayout(
              sidebarPanel(
                  fileInput('file2', 'Insert File', accept = c(".xlsx")),
-                 textInput('file2sheet','Name of Sheet (Case-Sensitive)'),
+                 pickerInput01("file2_picker"),
                  textInput('nodename1','Name of Node'),
                  sliderInput("gg_n2o_flux_slider","N2O Flux Range",
                              min = 0,
@@ -156,7 +158,8 @@ tabPanel("VWC and Temp Data",
          sidebarLayout(
              sidebarPanel(
                  fileInput('file3', 'Insert File', accept = c(".xlsx")),
-                 textInput('file3sheet','Name of Sheet (Case-Sensitive)'),
+                 pickerInput01("file3_picker"), 
+                 #textInput('file3sheet','Name of Sheet (Case-Sensitive)'),
                  textInput('nodename2','Name of Node'),
                  
                  
@@ -206,7 +209,8 @@ tabPanel("Deep Moisture",
          sidebarLayout(
              sidebarPanel(
                  fileInput('dm_file1', 'Insert File', accept = c(".xlsx")),
-                 textInput('dm_file1sheet','Name of Sheet (Case-Sensitive)'),
+                 pickerInput01("dm_file1_picker"),
+                 #textInput('dm_file1sheet','Name of Sheet (Case-Sensitive)'),
                  #textInput('nodename2','Name of Node'),
                  
                  
@@ -282,6 +286,31 @@ server <- function(input, output, session) {
     )
     
   })
+  #greenhouse gas
+  observeEvent(input$file2,{
+    updatePickerInput(session, "file2_picker",
+                      selected = NULL, 
+                      choices = gg_sheets_name()
+    )
+    
+  })
+  ## VWC and Soil
+  observeEvent(input$file3,{
+    updatePickerInput(session, "file3_picker",
+                      selected = NULL, 
+                      choices = vwc_temp_sheets_name()
+    )
+    
+  })
+  
+  ## Deep Moisture
+  observeEvent(input$dm_file1,{
+    updatePickerInput(session, "dm_file1_picker",
+                      selected = NULL, 
+                      choices = dm_sheets_name()
+    )
+    
+  })
   
 
 # Uploading Oxygen Data Logic ----------------------------------------------------
@@ -301,8 +330,6 @@ server <- function(input, output, session) {
             ) {
           #makes it so the app doesn't crash
           tryCatch({
-            
-          
             data <- read_excel(input$file1$datapath, 
                                sheet = input$file1_picker,
                                col_types = c("date", 
@@ -351,21 +378,31 @@ server <- function(input, output, session) {
     })
     
     gg_raw_data <- reactive({
-        if (!is.null(input$file2) && 
-            (input$file2sheet %in% gg_sheets_name())) {
-            data <- read_excel(input$file2$datapath, 
-                               sheet = input$file2sheet,
-                               col_types = c("date", 
-                                             "text", "text", "text", "text", "text", 
-                                             "text", "text", "text", "text", "text", 
-                                             "text", "text", "text", "text", "text", 
-                                             "text", "text", "text", "text", "text", 
-                                             "text", "text", "text", "text"), 
-                               
-                               skip = 1)
+        if (!is.null(input$file2_picker) 
+            # && 
+            # (input$file2_picker %in% gg_sheets_name())
+            ) {
+          tryCatch({data <- read_excel(input$file2$datapath, 
+                                       sheet = input$file2_picker,
+                                       col_types = c("date", 
+                                                     "text", "text", "text", "text", "text", 
+                                                     "text", "text", "text", "text", "text", 
+                                                     "text", "text", "text", "text", "text", 
+                                                     "text", "text", "text", "text", "text", 
+                                                     "text", "text", "text", "text"), 
+                                       
+                                       skip = 1)
+          
+          return(data)},
+          error = function(e) {
+            showNotification('Can not read in that Sheet', '',type = "error")
+            return()
+          }, silent=TRUE
+          )#end of trycatch
             
-            return(data)
-        } else {
+        }
+        
+        else {
             return(NULL)
         }
     })
@@ -383,10 +420,9 @@ server <- function(input, output, session) {
     })
     
     vwc_temp_raw_data <- reactive({
-        if (!is.null(input$file3) && 
-            (input$file3sheet %in% vwc_temp_sheets_name())) {
+        if (!is.null(input$file3) ) {
             data <- read_excel(input$file3$datapath, 
-                               sheet = input$file3sheet,
+                               sheet = input$file3_picker,
                                col_types = c("date", 
                                              "text", "text", "text", "text", "text", 
                                              "text", "text", "text", "text", "text", 
@@ -460,10 +496,9 @@ server <- function(input, output, session) {
     })
     
     dm_raw_data <- reactive({
-        if (!is.null(input$dm_file1) && 
-            (input$dm_file1sheet %in% dm_sheets_name())) {
+        if (!is.null(input$dm_file1)) {
             data <- read_excel(input$dm_file1$datapath, 
-                               sheet = input$dm_file1sheet,
+                               sheet = input$dm_file1_picker,
                                col_types = c("text", 
                                              "date", "numeric", "text", "numeric", 
                                              "numeric", "numeric", "numeric", 
