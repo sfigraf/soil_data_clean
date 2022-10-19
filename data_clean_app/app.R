@@ -7,6 +7,7 @@
 # add text input to show that sliders won't re-update oxygen data; only changing node name will
 library(shiny)
 library(shinycssloaders)
+library(shinyWidgets)
 library(plotly)
 library(tidyverse)
 library(lubridate)
@@ -30,15 +31,17 @@ ui <- fluidPage(
                theme = shinytheme("united"), #end of navbar page arguments; what follow is all inside it
                
 
-# Upload and clean oxygen data --------------------------------------------
+# Oxygen Upload and clean data --------------------------------------------
 
                
         tabPanel("Oxygen Data",
-                 
                  sidebarLayout(
                      sidebarPanel(
                          fileInput('file1', 'Insert File', accept = c(".xlsx")),
-                         textInput('file1sheet','Name of Sheet (Case-Sensitive)'),
+                         pickerInput("file1_picker", "Sheet Name", choices = NULL,
+                                     selected = NULL,
+                                     multiple = FALSE),
+                         #textInput('file1sheet','Name of Sheet (Case-Sensitive)'),
                          sliderInput("slider1", "Oxygen Range to Include",
                                      min = 0,
                                      max = 50,  
@@ -269,6 +272,18 @@ tabPanel("Deep Moisture",
 
 server <- function(input, output, session) {
 
+# Updating Sheet Names ----------------------------------------------------
+
+  #oxygen
+  observeEvent(input$file1,{
+    updatePickerInput(session, "file1_picker",
+                      selected = NULL, 
+                      choices = sheets_name()
+    )
+    
+  })
+  
+
 # Uploading Oxygen Data Logic ----------------------------------------------------
 
     
@@ -281,10 +296,15 @@ server <- function(input, output, session) {
     })
     
     raw_data <- reactive({
-        if (!is.null(input$file1) && 
-            (input$file1sheet %in% sheets_name())) {
+        if (!is.null(input$file1_picker) 
+            #&& (input$file1_picker %in% sheets_name())
+            ) {
+          #makes it so the app doesn't crash
+          tryCatch({
+            
+          
             data <- read_excel(input$file1$datapath, 
-                               sheet = input$file1sheet,
+                               sheet = input$file1_picker,
                                col_types = c("date", 
                                              "text", "text", "text", "numeric", 
                                              "numeric", "numeric", "numeric", 
@@ -298,6 +318,20 @@ server <- function(input, output, session) {
                                skip = 1)
             
             return(data)
+            
+          },
+          # this part stops the code from exercuting and stops the app from crashing if a warning happens. Since there are often lots of warnings reading in this data, we don't care
+          # warning = function(w) {
+          #   showNotification('there was a warning','',type = "error")
+          #   return()
+          # }, 
+          #if there is an error reading in the sheet (function(e)), this stops the app from creashing 
+          error = function(e) {
+            showNotification('Can not read in that Sheet', '',type = "error")
+            return()
+          }, silent=TRUE
+          ) #end of trycatch
+          
         } else {
             return(NULL)
         }
@@ -504,7 +538,7 @@ server <- function(input, output, session) {
             need(!is.null(raw_data() ), "Please upload a data set")
         )
         
-        clean_sheet_function(raw_data(),input$file1sheet)
+        clean_sheet_function(raw_data(),input$file1_picker)
 
     })
     #creates reactive vals to be modified
@@ -519,7 +553,7 @@ server <- function(input, output, session) {
             group_by(TIMESTAMP, depth) %>%
             #mutate(avg2 = mean(value1))
             summarise(avg1 = mean(value1)) %>%
-            mutate(node_x = as.character(input$file1sheet))
+            mutate(node_x = as.character(input$file1_picker))
     })
     
     #creates proxies to use for datatables
@@ -550,7 +584,7 @@ server <- function(input, output, session) {
                 
                 group_by(TIMESTAMP, depth) %>%
                 summarise(avg1 = mean(value1)) %>%
-                mutate(node_x = as.character(input$file1sheet))
+                mutate(node_x = as.character(input$file1_picker))
             
         } else { #if checkbox not pressed, just use slider1 inputs
             oxygen_mod_df$cleaned <- function_cleaned_data() %>%
@@ -562,7 +596,7 @@ server <- function(input, output, session) {
             oxygen_mod_df$summaries <- oxygen_mod_df$cleaned %>%
                 group_by(TIMESTAMP, depth) %>%
                 summarise(avg1 = mean(value1)) %>%
-                mutate(node_x = as.character(input$file1sheet))
+                mutate(node_x = as.character(input$file1_picker))
         }
         
         DT::replaceData(oxygen_cleaned_proxy, oxygen_mod_df$cleaned)
@@ -775,7 +809,7 @@ server <- function(input, output, session) {
     output$download1 <- downloadHandler(
         filename = 
             function() {
-                paste0("Oxygen_Cleaned_data_", str_replace_all(input$file1sheet, fixed(" "), ""), ".csv")
+                paste0("Oxygen_Cleaned_data_", str_replace_all(input$file1_picker, fixed(" "), ""), ".csv")
             }
         ,
         content = function(file) {
@@ -788,7 +822,7 @@ server <- function(input, output, session) {
     output$download2 <- downloadHandler(
         filename = 
             function() {
-                paste0("Oxygen_Data_summaries_", str_replace_all(input$file1sheet, fixed(" "), ""),".csv")
+                paste0("Oxygen_Data_summaries_", str_replace_all(input$file1_picker, fixed(" "), ""),".csv")
             }
         ,
         content = function(file) {
