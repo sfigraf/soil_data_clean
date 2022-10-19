@@ -1,6 +1,7 @@
 library(tidyverse)
 library(lubridate)
 gg_function <- function(gg_input, Node_name) {
+  #comment out this part ina bit
   # gg_input<- Node_1
   # Node_name <- "Node 1"
   
@@ -26,6 +27,7 @@ gg_function <- function(gg_input, Node_name) {
   colnames(data_05) <- new_names1
   #removeds first row
   data1 <- data_05[-c(1),]
+  
   #changes to numeric types
   
   cols.num <- c(2:3,5:ncol(data1))
@@ -37,27 +39,28 @@ gg_function <- function(gg_input, Node_name) {
            `N2O_Flux[nmol+1m-2s-1]` = `FN2O_DRY_[nmol+1m-2s-1]`,
            `N2O Concentration[nmol+1mol-1]` = `N2O_DRY mean_[nmol+1mol-1]`,
            `CO2 Flux[nmol+1m-2s-1]` = `FCO2_DRY_[umol+1m-2s-1]`,
-           `CO2 Concentration[umol+1mol-1]` = `CO2_DRY mean_[umol+1mol-1]`
+           `CO2 Concentration[umol+1mol-1]` = `CO2_DRY mean_[umol+1mol-1]`,
+           Port_Label = `PORT_LABEL_[#]`
     ) %>%
     mutate(DateTime2 = with_tz(DateTime1, tzone = "US/Central"),
            Date1 = date(DateTime2),
            node = Node_name,
     ) %>%
-    select(Date1, DateTime2, node, `N2O_Flux[nmol+1m-2s-1]`,`N2O Concentration[nmol+1mol-1]`,
+    select(Date1, DateTime2, node, Port_Label, `N2O_Flux[nmol+1m-2s-1]`,`N2O Concentration[nmol+1mol-1]`,
            `CO2 Flux[nmol+1m-2s-1]`,`CO2 Concentration[umol+1mol-1]`) %>%
     distinct()
   
   n2O_flux_only <- data2 %>%
-    select(Date1,DateTime2,node,`N2O_Flux[nmol+1m-2s-1]`)
+    select(Date1,DateTime2,node,Port_Label,`N2O_Flux[nmol+1m-2s-1]`)
   
   n2O_conc_only <- data2 %>%
-    select(Date1,DateTime2,node, `N2O Concentration[nmol+1mol-1]`)
+    select(Date1,DateTime2,node, Port_Label,`N2O Concentration[nmol+1mol-1]`)
   
   co2_flux_only <- data2 %>%
-    select(Date1,DateTime2,node,`CO2 Flux[nmol+1m-2s-1]`)
+    select(Date1,DateTime2,node,Port_Label,`CO2 Flux[nmol+1m-2s-1]`)
   
   co2_conc_only <- data2 %>%
-    select(Date1,DateTime2,node,`CO2 Concentration[umol+1mol-1]`)
+    select(Date1,DateTime2,node,Port_Label,`CO2 Concentration[umol+1mol-1]`)
   
   list1 <- list("n2o_flux"= n2O_flux_only, "n2o_conc" = n2O_conc_only,
                 "co2_flux"= co2_flux_only, "co2_conc" = co2_conc_only)
